@@ -1,0 +1,153 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Koyu tema işletim sistemi tercihinden gelir (prefers-color-scheme). */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-schibsted);
+  --font-mono: var(--font-plex-mono);
+  --font-heading: var(--font-sans);
+  --color-stamp: var(--stamp);
+  --color-pen: var(--pen);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Tastamam paleti (BRAND.md). Defter kâğıdı zemin, cetvel yeşili çizgi,
+   mürekkep metin, tükenmez mavisi eylem, mühür moru SADECE tamamlanmış durum,
+   pas rengi süre yaklaşıyor/eksik. */
+:root {
+  --background: #f3f5f0;
+  --foreground: #1c1f1d;
+  --card: #ffffff;
+  --card-foreground: #1c1f1d;
+  --popover: #ffffff;
+  --popover-foreground: #1c1f1d;
+  --primary: #1f3a93;
+  --primary-foreground: #ffffff;
+  --secondary: #e8ece6;
+  --secondary-foreground: #1c1f1d;
+  --muted: #eef2ec;
+  --muted-foreground: #5d665f;
+  --accent: #e8ecf7;
+  --accent-foreground: #1c1f1d;
+  --destructive: #a3471c;
+  --border: #c9d8cd;
+  --input: #c9d8cd;
+  --ring: #1f3a93;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.125rem;
+  --sidebar: #f3f5f0;
+  --sidebar-foreground: #1c1f1d;
+  --sidebar-primary: #1f3a93;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8ecf7;
+  --sidebar-accent-foreground: #1c1f1d;
+  --sidebar-border: #c9d8cd;
+  --sidebar-ring: #1f3a93;
+
+  --pen: #1f3a93;
+  --stamp: #5a3e8e;
+  /* Evrak durumu: "ok" = tamamlandı (mühür moru), "warn" = eksik (pas) */
+  --ok: #5a3e8e;
+  --ok-soft: #efeaf6;
+  --warn: #a3471c;
+  --warn-soft: #f7ece5;
+  --muted-badge: #eef2ec;
+  --muted-badge-ink: #5d665f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+  --background: #151816;
+  --foreground: #e5e9e3;
+  --card: #1c201d;
+  --card-foreground: #e5e9e3;
+  --popover: #1c201d;
+  --popover-foreground: #e5e9e3;
+  --primary: #93aaf2;
+  --primary-foreground: #151816;
+  --secondary: #252b27;
+  --secondary-foreground: #e5e9e3;
+  --muted: #212622;
+  --muted-foreground: #9aa39c;
+  --accent: #232a3d;
+  --accent-foreground: #e5e9e3;
+  --destructive: #e7956b;
+  --border: #2b342e;
+  --input: #2b342e;
+  --ring: #93aaf2;
+  --sidebar: #151816;
+  --sidebar-foreground: #e5e9e3;
+  --sidebar-primary: #93aaf2;
+  --sidebar-primary-foreground: #151816;
+  --sidebar-accent: #232a3d;
+  --sidebar-accent-foreground: #e5e9e3;
+  --sidebar-border: #2b342e;
+  --sidebar-ring: #93aaf2;
+
+  --pen: #93aaf2;
+  --stamp: #b7a1e3;
+  --ok: #b7a1e3;
+  --ok-soft: #2a2438;
+  --warn: #e7956b;
+  --warn-soft: #3a2a21;
+  --muted-badge: #252b27;
+  --muted-badge-ink: #9aa39c;
+  color-scheme: dark;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
