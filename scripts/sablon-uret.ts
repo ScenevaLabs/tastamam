@@ -8,7 +8,7 @@
 // hazırlanmış ayrı bir dosyadır, bu betik onu üretmez.
 
 import { writeFileSync } from "node:fs";
-import { docxPaketle, imzaTablosu, paragraf } from "../src/lib/docx";
+import { docxPaketle, imzaTablosu, paragraf, tablo } from "../src/lib/docx";
 
 const baslik = (m: string) => paragraf(m, { kalin: true, ortala: true, boyut: 13, sonra: 240 });
 const ara = (m: string) => paragraf(m, { kalin: true, sonra: 80 });
@@ -149,8 +149,71 @@ const riza = [
   metin("İmza:"),
 ].join("");
 
+// ── Fazla çalışma onay belgesi (Fazla Çalışma Yön. md. 9) ──────────
+
+const fazlaCalisma = [
+  baslik("FAZLA ÇALIŞMA ONAY BELGESİ"),
+  metin(
+    "{SIRKET_ADRESI} adresinde bulunan {SIRKET_UNVANI} (“İşveren”) işyerinde çalışmaktayım. 4857 sayılı İş Kanunu’nun 41. maddesi ve İş Kanununa İlişkin Fazla Çalışma ve Fazla Sürelerle Çalışma Yönetmeliği gereğince, ihtiyaç duyulduğunda yılda toplam 270 saati aşmamak üzere fazla çalışma ve fazla sürelerle çalışma yapmayı kabul ediyorum.",
+  ),
+  metin(
+    "Fazla çalışmada saat ücretimin yüzde elli, fazla sürelerle çalışmada yüzde yirmi beş fazlası ödenir. İstersem ücret yerine fazla çalıştığım her saat için bir saat otuz dakika, fazla sürelerle çalıştığım her saat için bir saat on beş dakika serbest zamanı altı ay içinde kullanabilirim.",
+  ),
+  metin("Bu onayı, otuz gün önceden İşverene yazılı olarak bildirmek kaydıyla geri alabileceğimi biliyorum."),
+  paragraf("", { sonra: 120 }),
+  metin("Adı Soyadı: {AD_SOYAD}"),
+  metin("T.C. Kimlik No: {TC}"),
+  metin("Tarih: {TARIH}"),
+  metin("İmza:"),
+].join("");
+
+// ── Çalışma belgesi (4857 md. 28) ───────────────────────────────────
+
+const calismaBelgesi = [
+  baslik("ÇALIŞMA BELGESİ"),
+  metin(
+    "{AD_SOYAD} (T.C. Kimlik No: {TC}), {SIRKET_ADRESI} adresinde bulunan {SIRKET_UNVANI} işyerinde {BASLAMA_TARIHI} ile {BITIS_TARIHI} tarihleri arasında “{MESLEK}” olarak çalışmıştır.",
+  ),
+  metin("Bu belge, 4857 sayılı İş Kanunu’nun 28. maddesi gereğince işten ayrılışında işçiye verilmiştir."),
+  paragraf("", { sonra: 120 }),
+  metin("Tarih: {TARIH}"),
+  paragraf("", { sonra: 240 }),
+  imzaTablosu("İŞVEREN VEYA VEKİLİ", "TESLİM ALAN İŞÇİ"),
+].join("");
+
+// ── Zimmet tutanağı ─────────────────────────────────────────────────
+// Eşya satırı {#ESYALAR}…{/ESYALAR} döngüsüyle tekrarlanır (docxtemplater).
+
+const zimmet = [
+  baslik("ZİMMET TUTANAĞI"),
+  metin(
+    "{SIRKET_ADRESI} adresinde bulunan {SIRKET_UNVANI} (“İşveren”) tarafından, {TC} T.C. kimlik numaralı {AD_SOYAD} adlı çalışana aşağıdaki eşyalar sağlam ve çalışır halde teslim edilmiştir.",
+  ),
+  tablo(
+    [4200, 2600, 2200],
+    [
+      [
+        { metin: "Eşya", kalin: true, golge: true },
+        { metin: "Seri / demirbaş no", kalin: true, golge: true },
+        { metin: "Teslim tarihi", kalin: true, golge: true },
+      ],
+      [{ metin: "{#ESYALAR}{ESYA}" }, { metin: "{SERI_NO}" }, { metin: "{VERILIS}{/ESYALAR}" }],
+    ],
+  ),
+  paragraf("", { sonra: 160 }),
+  metin(
+    "Çalışan, bu eşyaları özenle kullanacağını, işten ayrılırken ya da istendiğinde eksiksiz iade edeceğini ve kendi kusuruyla doğan zararları karşılayacağını kabul eder.",
+  ),
+  metin("Tarih: {TARIH}"),
+  paragraf("", { sonra: 240 }),
+  imzaTablosu("TESLİM EDEN (İŞVEREN)", "TESLİM ALAN (ÇALIŞAN)"),
+].join("");
+
 const cikti = process.argv[2] ?? "templates";
 writeFileSync(`${cikti}/sozlesme-belirsiz-sureli.docx`, docxPaketle(belirsiz));
 writeFileSync(`${cikti}/kvkk-aydinlatma.docx`, docxPaketle(aydinlatma));
 writeFileSync(`${cikti}/kvkk-acik-riza.docx`, docxPaketle(riza));
+writeFileSync(`${cikti}/fazla-calisma-onayi.docx`, docxPaketle(fazlaCalisma));
+writeFileSync(`${cikti}/calisma-belgesi.docx`, docxPaketle(calismaBelgesi));
+writeFileSync(`${cikti}/zimmet-tutanagi.docx`, docxPaketle(zimmet));
 console.log("Şablonlar yazıldı:", cikti);

@@ -2,7 +2,7 @@ import { ayarlarSatiri } from "@/lib/istek";
 import { raporSatirlari } from "@/lib/puantaj-veri";
 import type { createClient } from "@/lib/supabase/server";
 import { gunEkle } from "@/lib/mevzuat";
-import { ayinGunleri, puantajSatiri, type PuantajIzni, type PuantajSatiri } from "@/lib/puantaj";
+import { aylar, ayinGunleri, puantajSatiri, type PuantajIzni, type PuantajSatiri } from "@/lib/puantaj";
 import type { PuantajGun } from "@/lib/types";
 
 // Puantajın evrak listesindeki yeri (14 Ekim 2026, kullanıcı isteği): her iş
@@ -94,20 +94,6 @@ export async function puantajBelgeVerisiYukle(
   };
 }
 
-function aylar(bas: string, bit: string): string[] {
-  const sonuc: string[] = [];
-  let [y, m] = bas.slice(0, 7).split("-").map(Number);
-  const [sy, sm] = bit.slice(0, 7).split("-").map(Number);
-  while (y < sy || (y === sy && m <= sm)) {
-    sonuc.push(`${y}-${String(m).padStart(2, "0")}`);
-    m++;
-    if (m === 13) {
-      m = 1;
-      y++;
-    }
-  }
-  return sonuc;
-}
 
 /** Bir dönemin puantaj satırları (en yeni ay üstte). */
 export function donemPuantajlari(params: {

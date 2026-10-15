@@ -42,12 +42,19 @@ müşavirin hazırlamaya devam eder; Tastamam ona gidecek bildirimi zamanında h
   risk değerlendirmesi ve acil durum planı takibi.
 - **İş kazası:** olay kaydı, SGK'ya 3 iş günü bildirim süresinin geri sayımı, tutanak ve
   rapor, istirahatin puantaja işlenmesi.
-- **Takvim:** bütün yasal süreler tek listede; yaklaşınca sabah maili.
+- **Fazla çalışma ve çıkış belgeleri:** fazla çalışma yapılan dönemde onay belgesi, onayın
+  geri alınması ve yasak durumlarda puantaj uyarısı; çıkışta çalışma belgesi; aylık imzalı
+  ücret pusulası arşivi.
+- **Duruma bağlı kayıtlar:** gebelik, doğum ve süt izni, gece çalışma raporu, yabancı
+  çalışanın çalışma izni, çalışma koşulu değişikliği, savunma tutanağı; BES katılım ve
+  cayma; engelli kontenjanı uyarısı.
+- **Zimmet:** teslim edilen eşyalar, iade takibi ve zimmet tutanağı.
+- **Takvim:** bütün yasal süreler tek listede; yaklaşınca sabah maili. İşten ayrılanların
+  kişisel verilerinin saklama süresi dolunca hatırlatır.
 - **Belgeler nerede dursun:** bu bilgisayardaki bir klasör (OneDrive/Dropbox eşitleme
   klasörü olabilir), Supabase Storage, OneDrive ya da Google Drive.
 
-Geliştiriliyor: fazla çalışma onayı, çalışma belgesi, KVKK aydınlatma ve imha takibi,
-ücret pusulası arşivi, zimmet tutanağı.
+Geliştiriliyor: muhasebeden gelen ücret pusulalarının mailden otomatik dosyalanması.
 
 <table>
 <tr><td><img src="docs/ekranlar/calisanlar.png" alt="Çalışanlar"></td><td><img src="docs/ekranlar/kisi.png" alt="Çalışan dosyası"></td></tr>
@@ -95,8 +102,11 @@ notices e-mailed to the accountant, with replies filed automatically; employment
 from a template (a sample is included, or upload your own); KVKK privacy notices per
 employee with optional separate consent forms; monthly timesheets with SGK missing-day codes and overtime limits; annual leave
 entitlement and leave records; occupational health and safety renewals by hazard class;
-work accident records with the 3-business-day SGK notification countdown; a single
-deadline calendar with a morning reminder e-mail. Documents can live in a local folder,
+work accident records with the 3-business-day SGK notification countdown; overtime consent
+and prohibition warnings, employment certificates and signed payslip archive; special
+statuses (pregnancy, maternity and nursing leave, night-work health reports, work permits,
+changes to working conditions) and equipment hand-over records; a single deadline
+calendar with a morning reminder e-mail. Documents can live in a local folder,
 Supabase Storage, OneDrive or Google Drive.
 
 The interface and documentation are in Turkish, since the rules are Turkish law.

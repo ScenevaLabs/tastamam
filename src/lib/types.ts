@@ -7,6 +7,10 @@ export type Kisi = {
   adres: string | null;
   dogum_tarihi: string | null;
   created_at: string;
+  engelli?: boolean;
+  kismi_sureli?: boolean;
+  bes_katilim?: string | null;
+  bes_cayma?: string | null;
 };
 
 export type IsGirisi = {
@@ -27,6 +31,7 @@ export type IsGirisi = {
   izin_ucreti_gun?: number | null;
   izin_ucreti_odendi_at?: string | null;
   created_at: string;
+  fazla_calisma_geri_alma?: string | null;
 };
 
 export type UcretPeriyodu = "gunluk" | "aylik";
@@ -91,8 +96,19 @@ export const DONEM_BELGE_TIPLERI = [
   "imzali_ciktisi",
   "fesih_bildirimi",
   "yillik_izin_yazisi",
+  // Koşullu (15 Ekim 2026, migration 0029): yalnızca gerektiğinde istenir —
+  // fazla çalışma yapılan dönemde onay, çıkışı olan dönemde çalışma belgesi
+  // (lib/donem-belge.ts).
+  "fazla_calisma_onayi",
+  "calisma_belgesi",
 ] as const;
 export type IsGirisiBelgeTipi = (typeof DONEM_BELGE_TIPLERI)[number];
+
+export const KOSULLU_DONEM_BELGE_TIPLERI = ["fazla_calisma_onayi", "calisma_belgesi"] as const;
+/** Her dönemde istenenler (eksik sayımının sabit kısmı). */
+export const SABIT_DONEM_BELGE_TIPLERI = DONEM_BELGE_TIPLERI.filter(
+  (t) => !(KOSULLU_DONEM_BELGE_TIPLERI as readonly string[]).includes(t),
+);
 
 export const DONEM_BELGE_ETIKETLERI: Record<IsGirisiBelgeTipi, string> = {
   isegiris_bildirgesi: "İş giriş bildirgesi",
@@ -102,6 +118,8 @@ export const DONEM_BELGE_ETIKETLERI: Record<IsGirisiBelgeTipi, string> = {
   imzali_ciktisi: "İmzalı çıktı",
   fesih_bildirimi: "Fesih bildirimi",
   yillik_izin_yazisi: "Yıllık izin yazısı",
+  fazla_calisma_onayi: "Fazla çalışma onayı (imzalı)",
+  calisma_belgesi: "Çalışma belgesi (imzalı)",
 };
 
 // 8 Ekim 2026: İSG belgeleri dönemden kişiye taşındı — temel eğitim

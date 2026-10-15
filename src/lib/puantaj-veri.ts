@@ -12,6 +12,7 @@ import {
 } from "@/lib/puantaj";
 import type { PuantajGun } from "@/lib/types";
 import { xlsxOlustur, type XlsxHucre } from "@/lib/xlsx";
+import { fazlaCalismaEngeli, type FazlaCalismaEngeli } from "@/lib/donem-belge";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -24,6 +25,8 @@ export type PuantajVerisi = {
   /** kisiId → imzalı çizelgenin yüklendiği an (0024). */
   imzalar: Record<string, string>;
   uyarilar: FazlaCalismaUyarisi[];
+  /** Fazla çalışma yaptırılamayan günler (Fazla Çalışma Yön. md. 8, 9). */
+  engeller: { kisiId: string; adSoyad: string; neden: FazlaCalismaEngeli; gunler: string[] }[];
   bugun: string;
 };
 
@@ -66,10 +69,17 @@ export async function puantajYukle(supabase: Supabase, ay: string): Promise<Puan
   ] = await Promise.all([
       supabase
         .from("is_girisi")
-        .select("kisi_id, giris_tarihi, cikis_tarihi, kisi:kisi_id(ad_soyad)")
+        .select("*, kisi:kisi_id(*)")
         .lte("giris_tarihi", son)
         .or(`cikis_tarihi.is.null,cikis_tarihi.gte.${ilk}`)
-        .returns<{ kisi_id: string; giris_tarihi: string; cikis_tarihi: string | null; kisi: { ad_soyad: string } | null }[]>(),
+        .returns<{
+          id: string;
+          kisi_id: string;
+          giris_tarihi: string;
+          cikis_tarihi: string | null;
+          fazla_calisma_geri_alma?: string | null;
+          kisi: { ad_soyad: string; dogum_tarihi: string | null; kismi_sureli?: boolean } | null;
+        }[]>(),
       supabase.from("puantaj_gun").select("*").gte("tarih", ilk).lte("tarih", son).returns<PuantajGun[]>(),
       // Yol izni bitişten sonraki iş günlerine taşar; önceki aydan gelebilir.
       supabase
@@ -135,6 +145,7 @@ export async function puantajYukle(supabase: Supabase, ay: string): Promise<Puan
     gonderimHatasi: kapanis?.gonderim_hatasi ?? null,
     imzalar: Object.fromEntries((imzalar ?? []).map((i) => [i.kisi_id, i.yuklendi_at])),
     uyarilar: fazlaCalismaUyarilari([...toplam.values()]),
+    engeller: await fazlaCalismaEngelleri(supabase, satirlar, donemler ?? []),
     bugun,
   };
 }
@@ -175,4 +186,55 @@ export function puantajExcel(v: PuantajVerisi): Buffer {
       ". Eksik gün kodları öneridir, son karar mali müşavirindir.",
   ]);
   return xlsxOlustur(`Puantaj ${v.ay}`, satirlar, [24, ...gunler.map(() => 6), 10, 11, 10, 34, 12]);
+}
+
+/** Bu ayda fazla çalışma girilmiş ama yaptırılamayacak günler: onay belgesi
+ *  yok, onay geri alınmış (30 gün sonrası) ya da çalışan 18 yaşından küçük. */
+async function fazlaCalismaEngelleri(
+  supabase: Supabase,
+  satirlar: PuantajSatiri[],
+  donemler: {
+    id: string;
+    kisi_id: string;
+    giris_tarihi: string;
+    cikis_tarihi: string | null;
+    fazla_calisma_geri_alma?: string | null;
+    kisi: { ad_soyad: string; dogum_tarihi: string | null; kismi_sureli?: boolean } | null;
+  }[],
+): Promise<PuantajVerisi["engeller"]> {
+  const fazlaGunler = satirlar.flatMap((s) => s.hucreler.filter((h) => h.fazlaSaat > 0).map((h) => ({ kisiId: s.kisiId, adSoyad: s.adSoyad, tarih: h.tarih })));
+  if (fazlaGunler.length === 0) return [];
+  const kisiIdler = [...new Set(fazlaGunler.map((g) => g.kisiId))];
+  const [{ data: onaylar }, { data: durumlar }] = await Promise.all([
+    supabase
+      .from("is_girisi_belge")
+      .select("is_girisi_id")
+      .eq("belge_tipi", "fazla_calisma_onayi")
+      .eq("durum", "var")
+      .in("is_girisi_id", donemler.map((d) => d.id)),
+    // Gebelik, doğum ve süt izni kayıtları (0030; tablo yoksa boş).
+    supabase.from("kisi_durum").select("kisi_id, tur, baslangic, bitis").in("kisi_id", kisiIdler),
+  ]);
+  const onayli = new Set((onaylar ?? []).map((o) => o.is_girisi_id as string));
+  const gruplar = new Map<string, PuantajVerisi["engeller"][number]>();
+  for (const g of fazlaGunler) {
+    const d = donemler.find(
+      (x) => x.kisi_id === g.kisiId && x.giris_tarihi <= g.tarih && (!x.cikis_tarihi || x.cikis_tarihi >= g.tarih),
+    );
+    if (!d) continue;
+    const neden = fazlaCalismaEngeli({
+      tarih: g.tarih,
+      onayVar: onayli.has(d.id),
+      geriAlma: d.fazla_calisma_geri_alma ?? null,
+      dogumTarihi: d.kisi?.dogum_tarihi ?? null,
+      kismiSureli: !!d.kisi?.kismi_sureli,
+      durumlar: (durumlar ?? []).filter((x) => x.kisi_id === g.kisiId),
+    });
+    if (!neden) continue;
+    const anahtar = `${g.kisiId}:${neden}`;
+    const grup = gruplar.get(anahtar) ?? { kisiId: g.kisiId, adSoyad: g.adSoyad, neden, gunler: [] };
+    grup.gunler.push(g.tarih);
+    gruplar.set(anahtar, grup);
+  }
+  return [...gruplar.values()];
 }

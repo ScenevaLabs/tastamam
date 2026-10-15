@@ -145,6 +145,8 @@ export type YuklemeIstegi =
   | { tur: "donem"; kisiId: string; isGirisiId: string; belgeTipi: IsGirisiBelgeTipi }
   | { tur: "izin"; kisiId: string; izinId: string }
   | { tur: "puantaj"; kisiId: string; ay: string }
+  | { tur: "pusula"; kisiId: string; ay: string }
+  | { tur: "durum"; kisiId: string; durumId: string }
   | { tur: "kaza"; kisiId: string; kazaId: string; belge: "tutanak" | "rapor" }
   /** İşyeri belgesi kişiye bağlı değil; kisiId boş gelir. */
   | { tur: "isyeri"; kisiId: ""; isyeriBelgeId: string }
@@ -186,6 +188,12 @@ async function yuklemeBaglami(
     adSoyad: kisi.ad_soyad as string,
     varsayilanDurum: await kisininVarsayilanDurumu(supabase, istek.kisiId),
   };
+
+  if (istek.tur === "durum") {
+    const { data: d } = await supabase.from("kisi_durum").select("kisi_id, tur, baslangic").eq("id", istek.durumId).maybeSingle();
+    if (!d || d.kisi_id !== istek.kisiId) return { error: "Kayıt bulunamadı." };
+    return { error: null, hedef: { tur: "durum", ...ortak, kod: d.tur, tarih: d.baslangic }, gecerlilikTarihi: null };
+  }
 
   if (istek.tur === "kaza") {
     if (istek.belge !== "tutanak" && istek.belge !== "rapor") return { error: "Bilinmeyen belge tipi." };
@@ -263,8 +271,9 @@ async function yuklemeBaglami(
     };
   }
 
-  if (istek.tur === "puantaj") {
-    // İmzalı aylık çizelge, o aya düşen (en son başlayan) iş döneminin klasörüne gider.
+  if (istek.tur === "puantaj" || istek.tur === "pusula") {
+    // İmzalı aylık çizelge ya da ücret pusulası, o aya düşen (en son başlayan)
+    // iş döneminin klasörüne gider.
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(istek.ay)) return { error: "Ay geçersiz." };
     const ilk = `${istek.ay}-01`;
     const son = new Date(Date.UTC(Number(istek.ay.slice(0, 4)), Number(istek.ay.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -285,7 +294,7 @@ async function yuklemeBaglami(
         ...ortak,
         girisTarihi: donem.giris_tarihi,
         cikisTarihi: donem.cikis_tarihi,
-        belgeTipi: "puantaj_cizelgesi",
+        belgeTipi: istek.tur === "puantaj" ? "puantaj_cizelgesi" : "ucret_pusulasi",
         dosyaTarihi: donem.giris_tarihi > ilk ? donem.giris_tarihi : ilk,
       },
       gecerlilikTarihi: null,
@@ -368,6 +377,14 @@ export async function belgeYuklemeTamamla(
     revalidatePath("/puantaj");
     revalidatePath(`/kisi/${istek.kisiId}`);
     revalidatePath("/");
+  } else if (istek.tur === "durum") {
+    const { error } = await supabase.from("kisi_durum").update({ dosya_adi: dosyaAdi }).eq("id", istek.durumId);
+    if (error) return { error: `Dosya yazıldı ama kayıt güncellenemedi: ${error.message}` };
+  } else if (istek.tur === "pusula") {
+    const { error } = await supabase
+      .from("ucret_pusulasi")
+      .upsert({ ay: `${istek.ay}-01`, kisi_id: istek.kisiId, dosya_adi: dosyaAdi, yuklendi_at: new Date().toISOString() });
+    if (error) return { error: `Dosya yazıldı ama kayıt güncellenemedi: ${error.message}` };
   } else if (istek.tur === "kaza") {
     const { error } = await supabase
       .from("is_kazasi")

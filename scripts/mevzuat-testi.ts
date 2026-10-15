@@ -23,6 +23,8 @@ import { calisanIsgTakibi, isyeriBelgeTakibi } from "../src/lib/isg-takip";
 import { hatirlatmaSecimi, takvimGruplari, takvimOgeleri } from "../src/lib/takvim";
 import type { IsgBelge } from "../src/lib/types";
 import PizZip from "pizzip";
+import { fazlaCalismaEngeli, fazlaCalismaVar, kosulluBelgeler, pusulaAylari, saklamaBitisi } from "../src/lib/donem-belge";
+import { besCaymaSonGun, kosulKabulSonGun } from "../src/lib/durum";
 import { SABLON_ADLARI, ornekSablon, sablonDogrula, sablonDoldur } from "../src/lib/sablon";
 
 function docxMetni(b: Buffer): string {
@@ -424,6 +426,107 @@ test("örnek şablonlar kurgu veriyle doluyor, alan ya da şirkete özgü ifade 
     assert.equal(k.error, null);
     if (k.error === null) assert.deepEqual(k.bilinmeyen, [], `${ad}: tanınmayan alan`);
   }
+});
+
+test("koşullu dönem belgeleri: çalışma belgesi çıkışta, fazla çalışma onayı fazla saatte", () => {
+  const acik = { giris_tarihi: "2026-07-15", cikis_tarihi: null };
+  const kapali = { giris_tarihi: "2026-09-01", cikis_tarihi: "2026-10-20" };
+  const eski = { giris_tarihi: "2025-01-01", cikis_tarihi: "2025-06-30" };
+  assert.deepEqual(kosulluBelgeler(acik, { fazlaCalisma: false, baslangic: "2026-10-15" }), []);
+  assert.deepEqual(kosulluBelgeler(kapali, { fazlaCalisma: false, baslangic: "2026-10-15" }), ["calisma_belgesi"]);
+  assert.deepEqual(kosulluBelgeler(eski, { fazlaCalisma: false, baslangic: "2026-10-15" }), []); // takipten önce
+  assert.deepEqual(kosulluBelgeler(eski, { fazlaCalisma: false, baslangic: null }), ["calisma_belgesi"]);
+  const elle = [
+    { kisi_id: "a", tarih: "2026-10-10", fazla_saat: 2 },
+    { kisi_id: "a", tarih: "2026-10-20", fazla_saat: 3 },
+  ];
+  assert.equal(fazlaCalismaVar(elle, "a", acik, "2026-10-15"), true);
+  assert.equal(fazlaCalismaVar(elle, "a", acik, "2026-10-25"), false);
+  assert.equal(fazlaCalismaVar(elle, "b", acik, null), false);
+});
+
+test("ücret pusulası ayları: bitmiş aylar, takip başlangıcından itibaren", () => {
+  assert.deepEqual(pusulaAylari({ giris_tarihi: "2026-07-15", cikis_tarihi: null }, "2026-08-10", "2026-10-15"), [
+    "2026-08",
+    "2026-09",
+  ]);
+  assert.deepEqual(pusulaAylari({ giris_tarihi: "2026-10-01", cikis_tarihi: null }, null, "2026-10-15"), []);
+  assert.deepEqual(pusulaAylari({ giris_tarihi: "2026-08-01", cikis_tarihi: "2026-08-20" }, null, "2026-10-15"), ["2026-08"]);
+});
+
+test("KVKK saklama: çıkış yılını izleyen yılbaşından 10 yıl", () => {
+  assert.equal(saklamaBitisi("2026-10-07"), "2037-01-01");
+  assert.equal(saklamaBitisi("2016-01-01"), "2027-01-01");
+});
+
+test("fazla çalışma engeli: 18 yaş altı, onay yok, geri alındıktan 30 gün sonra", () => {
+  const ortak = { onayVar: true, geriAlma: null, dogumTarihi: "1990-01-01" };
+  assert.equal(fazlaCalismaEngeli({ ...ortak, tarih: "2026-10-10" }), null);
+  assert.equal(fazlaCalismaEngeli({ ...ortak, tarih: "2026-10-10", dogumTarihi: "2008-11-01" }), "yas");
+  assert.equal(fazlaCalismaEngeli({ ...ortak, tarih: "2026-10-10", onayVar: false }), "onay_yok");
+  assert.equal(fazlaCalismaEngeli({ ...ortak, tarih: "2026-10-30", geriAlma: "2026-10-01" }), null); // 30 gün dolmadı
+  assert.equal(fazlaCalismaEngeli({ ...ortak, tarih: "2026-10-31", geriAlma: "2026-10-01" }), "geri_alindi");
+});
+
+test("koşul değişikliği 6 iş günü, BES cayma 2 ay", () => {
+  assert.equal(kosulKabulSonGun("2026-10-12"), "2026-10-20"); // Pzt → 6 iş günü sonra Sal
+  assert.equal(kosulKabulSonGun("2026-10-26"), "2026-11-04"); // 28 Eki arife iş günü, 29 Ekim tatil
+  assert.equal(besCaymaSonGun("2026-08-31"), "2026-10-31");
+  assert.equal(besCaymaSonGun("2026-12-31"), "2027-02-28");
+});
+
+test("fazla çalışma engeli: gebelik, emzirme, kısmi süre", () => {
+  const ortak = { tarih: "2026-10-10", onayVar: true, geriAlma: null, dogumTarihi: "1990-01-01" };
+  assert.equal(fazlaCalismaEngeli({ ...ortak, durumlar: [{ tur: "gebelik", baslangic: "2026-09-01", bitis: null }] }), "gebelik");
+  assert.equal(fazlaCalismaEngeli({ ...ortak, durumlar: [{ tur: "gebelik", baslangic: "2026-11-01", bitis: null }] }), null);
+  assert.equal(fazlaCalismaEngeli({ ...ortak, durumlar: [{ tur: "sut_izni", baslangic: "2026-01-01", bitis: "2026-12-31" }] }), "emzirme");
+  assert.equal(fazlaCalismaEngeli({ ...ortak, kismiSureli: true }), "kismi");
+});
+
+test("zimmet tutanağı: her eşya bir satır", async () => {
+  const dolu = sablonDoldur(await ornekSablon("zimmet_tutanagi"), {
+    AD_SOYAD: "Can Yıldız",
+    TC: "99000000040",
+    TARIH: "15/10/2026",
+    SIRKET_UNVANI: "ÖRNEK YAPIM LTD. ŞTİ.",
+    SIRKET_ADRESI: "Örnek Mah.",
+    ESYALAR: [
+      { ESYA: "Dizüstü bilgisayar", SERI_NO: "DB-0042", VERILIS: "15/07/2026" },
+      { ESYA: "Giriş kartı", SERI_NO: "", VERILIS: "15/07/2026" },
+    ],
+  });
+  const metin = docxMetni(dolu);
+  assert.ok(metin.includes("Dizüstü bilgisayar") && metin.includes("DB-0042") && metin.includes("Giriş kartı"));
+  assert.ok(!/[{}]/.test(metin));
+});
+
+test("takvim: çalışma izni, koşul değişikliği ve BES cayma süreleri", () => {
+  const o = takvimOgeleri({
+    bugun: "2026-10-15",
+    moduller: [],
+    sinif: null,
+    puantajBaslangicAy: null,
+    kisiler: [{ id: "a", ad_soyad: "Selin Koç", dogum_tarihi: null, bes_katilim: "2026-10-01", bes_cayma: null }],
+    donemler: [{ id: "d", kisi_id: "a", giris_tarihi: "2026-10-01", cikis_tarihi: null }],
+    donemBelgeleri: [{ is_girisi_id: "d", belge_tipi: "isegiris_bildirgesi", durum: "var" }],
+    isgBelgeleri: [],
+    isyeriBelgeleri: [],
+    kazalar: [],
+    izinler: [],
+    kapaliAylar: [],
+    durumlar: [
+      { kisi_id: "a", tur: "calisma_izni", baslangic: "2025-11-01", bitis: "2026-11-30", tamamlandi: null },
+      { kisi_id: "a", tur: "kosul_degisikligi", baslangic: "2026-10-12", bitis: null, tamamlandi: null },
+    ],
+  });
+  assert.deepEqual(
+    o.map((x) => [x.tarih, x.tur]),
+    [
+      ["2026-10-20", "Çalışan"],
+      ["2026-11-30", "Çalışan"],
+      ["2026-12-01", "Çalışan"],
+    ],
+  );
 });
 
 Promise.all(bekleyen).then(

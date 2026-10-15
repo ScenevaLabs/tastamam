@@ -1,6 +1,8 @@
 import { izinBakiyesi } from "@/lib/izin";
 import { calisanIsgTakibi, isyeriBelgeTakibi, kazaSonGun, ISYERI_BELGE_ADI } from "@/lib/isg-takip";
-import { SGK, gunEkle, gunFarki, tamYil, type TehlikeSinifi } from "@/lib/mevzuat";
+import { BES, FAZLA_CALISMA, SGK, gunEkle, gunFarki, tamYil, type TehlikeSinifi } from "@/lib/mevzuat";
+import { DURUM_BILGI, besCaymaSonGun, kosulKabulSonGun } from "@/lib/durum";
+import { saklamaBitisi } from "@/lib/donem-belge";
 import type { IsgBelge, IsKazasi, IsyeriBelge, Modul } from "@/lib/types";
 
 // Tek takvim (15 Ekim 2026): bütün yasal süreler tek listede. Saf hesap;
@@ -9,7 +11,7 @@ import type { IsgBelge, IsKazasi, IsyeriBelge, Modul } from "@/lib/types";
 // işler durur: yapılan iş (bildirge yüklendi, kaza bildirildi, ay kapandı)
 // kendiliğinden düşer.
 
-export type TakvimTuru = "SGK" | "İş kazası" | "İSG" | "İzin" | "Puantaj";
+export type TakvimTuru = "SGK" | "İş kazası" | "İSG" | "İzin" | "Puantaj" | "KVKK" | "Çalışan";
 
 export type TakvimOgesi = {
   /** Son gün (YYYY-MM-DD). */
@@ -25,8 +27,22 @@ export type TakvimGirdisi = {
   moduller: Modul[];
   sinif: TehlikeSinifi | null;
   puantajBaslangicAy: string | null;
-  kisiler: { id: string; ad_soyad: string; dogum_tarihi: string | null }[];
-  donemler: { id: string; kisi_id: string; giris_tarihi: string; cikis_tarihi: string | null }[];
+  kisiler: {
+    id: string;
+    ad_soyad: string;
+    dogum_tarihi: string | null;
+    bes_katilim?: string | null;
+    bes_cayma?: string | null;
+  }[];
+  /** Duruma bağlı kayıtlar (0030). */
+  durumlar?: { kisi_id: string; tur: string; baslangic: string; bitis: string | null; tamamlandi: string | null }[];
+  donemler: {
+    id: string;
+    kisi_id: string;
+    giris_tarihi: string;
+    cikis_tarihi: string | null;
+    fazla_calisma_geri_alma?: string | null;
+  }[];
   donemBelgeleri: { is_girisi_id: string; belge_tipi: string; durum: string }[];
   isgBelgeleri: IsgBelge[];
   isyeriBelgeleri: IsyeriBelge[];
@@ -190,6 +206,60 @@ export function takvimOgeleri(g: TakvimGirdisi): TakvimOgesi[] {
         href: `/puantaj?ay=${ay}`,
       });
     }
+  }
+
+  // Fazla çalışma onayının geri alınması 30 gün sonra hüküm doğurur (Yön. md. 9).
+  for (const d of g.donemler) {
+    if (!d.fazla_calisma_geri_alma || (d.cikis_tarihi && d.cikis_tarihi < bugun)) continue;
+    const tarih = gunEkle(d.fazla_calisma_geri_alma, FAZLA_CALISMA.onayGeriAlmaGun.deger);
+    if (tarih < bugun) continue;
+    ogeler.push({
+      tarih,
+      tur: "Puantaj",
+      metin: `${ad.get(d.kisi_id) ?? ""}: bu günden itibaren fazla çalışma yaptırılamaz (onay geri alındı)`,
+      href: `/kisi/${d.kisi_id}`,
+      dayanak: FAZLA_CALISMA.onayGeriAlmaGun.dayanak,
+    });
+  }
+
+  // KVKK: işten ayrılanın verileri saklama süresi dolunca silinir ya da anonimleştirilir.
+  for (const k of g.kisiler) {
+    const kd = g.donemler.filter((d) => d.kisi_id === k.id);
+    if (kd.length === 0 || kd.some((d) => !d.cikis_tarihi || d.cikis_tarihi >= bugun)) continue;
+    const sonCikis = kd.map((d) => d.cikis_tarihi!).sort().at(-1)!;
+    ogeler.push({
+      tarih: saklamaBitisi(sonCikis),
+      tur: "KVKK",
+      metin: `${k.ad_soyad}: kişisel verilerin saklama süresi doluyor, sil ya da anonimleştir`,
+      href: `/kisi/${k.id}`,
+      dayanak: SGK.saklamaYil.dayanak,
+    });
+  }
+
+  // Duruma bağlı süreler (0030).
+  for (const d of g.durumlar ?? []) {
+    const kisi = ad.get(d.kisi_id) ?? "";
+    const href = `/kisi/${d.kisi_id}`;
+    if (d.tur === "calisma_izni" && d.bitis) {
+      ogeler.push({ tarih: d.bitis, tur: "Çalışan", metin: `${kisi}: çalışma izni bitiyor, uzatma başvurusu`, href, dayanak: DURUM_BILGI.calisma_izni.dayanak });
+    } else if (d.tur === "gece_raporu" && d.bitis) {
+      ogeler.push({ tarih: d.bitis, tur: "İSG", metin: `${kisi}: gece çalışma sağlık raporu yenileme`, href, dayanak: DURUM_BILGI.gece_raporu.dayanak });
+    } else if (d.tur === "kosul_degisikligi" && !d.tamamlandi) {
+      ogeler.push({
+        tarih: kosulKabulSonGun(d.baslangic),
+        tur: "Çalışan",
+        metin: `${kisi}: çalışma koşulu değişikliğine yazılı kabul (alınmazsa bağlamaz)`,
+        href,
+        dayanak: DURUM_BILGI.kosul_degisikligi.dayanak,
+      });
+    }
+  }
+  // BES: cayma süresi (dahil edilmeden itibaren 2 ay).
+  for (const k of g.kisiler) {
+    if (!k.bes_katilim || k.bes_cayma) continue;
+    const son = besCaymaSonGun(k.bes_katilim);
+    if (son < bugun) continue;
+    ogeler.push({ tarih: son, tur: "Çalışan", metin: `${k.ad_soyad}: BES'ten cayma süresi bitiyor`, href: `/kisi/${k.id}`, dayanak: BES.caymaAy.dayanak });
   }
 
   const sinir = gunEkle(bugun, TAKVIM_ILERI_GUN);

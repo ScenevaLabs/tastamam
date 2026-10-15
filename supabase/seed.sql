@@ -168,3 +168,39 @@ insert into is_kazasi (kisi_id, tur, olay_tarihi, yer, aciklama, taniklar, haber
   ('00000000-0000-4000-8000-000000000007', 'ramak_kala', '2026-08-26', 'Kostüm deposu',
    'Üst raftan düşen kutu Burak''ın yanına düştü, kimse yaralanmadı. Raf sabitlendi.', 'Selin Koç',
    '2026-08-26 11:30+03', '2026.08.26_burakozturk_kaza_tutanak.pdf');
+
+-- ── Faz D paket 2 (0029): koşullu belgeler, ücret pusulası, KVKK ────
+-- Takip Eylül 2026'dan başlasın (eski aylar için pusula istenmesin).
+update ayarlar set belge_takip_baslangic = '2026-09-01', kvkk_acik_riza = true where id = true;
+
+-- Ayşe Demir'in fazla çalışma onayı imzalı; Murat Kaya'nınki yok (puantajda uyarı).
+insert into is_girisi_belge (is_girisi_id, belge_tipi, durum) values
+  ('10000000-0000-4000-8000-000000000001', 'fazla_calisma_onayi', 'var');
+
+-- KVKK aydınlatma metni: çoğu imzalı, yeni başlayanlarda eksik.
+insert into kisi_belge (kisi_id, belge_tipi, durum)
+select k.id, 'kvkk_aydinlatma', 'var' from kisi k
+where k.id::text in ('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000003',
+  '00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000007');
+
+-- Eylül 2026 ücret pusulaları: çoğu imzalı.
+insert into ucret_pusulasi (kisi_id, ay, dosya_adi) values
+  ('00000000-0000-4000-8000-000000000001', '2026-09-01', '2026.09.01_aysedemir_ucret_pusulasi.pdf'),
+  ('00000000-0000-4000-8000-000000000003', '2026-09-01', '2026.09.01_elifsahin_ucret_pusulasi.pdf'),
+  ('00000000-0000-4000-8000-000000000005', '2026-09-01', '2026.09.01_denizaydin_ucret_pusulasi.pdf'),
+  ('00000000-0000-4000-8000-000000000006', '2026-09-01', '2026.09.01_zeyneparslan_ucret_pusulasi.pdf');
+
+-- ── Faz D paket 3 (0030): durumlar ve zimmet ─────────────────────────
+update kisi set engelli = true where id = '00000000-0000-4000-8000-000000000006';
+update kisi set bes_katilim = '2021-11-03' where id = '00000000-0000-4000-8000-000000000001';
+update kisi set bes_katilim = '2026-10-12' where id = '00000000-0000-4000-8000-000000000008';
+
+insert into kisi_durum (kisi_id, tur, baslangic, bitis, tamamlandi, notu) values
+  ('00000000-0000-4000-8000-000000000005', 'gece_raporu', '2024-11-20', '2026-11-20', null, 'Gece çekimleri için'),
+  ('00000000-0000-4000-8000-000000000007', 'kosul_degisikligi', '2026-10-12', null, null, 'Çalışma saatleri 09.00–18.00 yerine 10.00–19.00');
+
+insert into zimmet (kisi_id, esya, seri_no, verilis, iade) values
+  ('00000000-0000-4000-8000-000000000004', 'Dizüstü bilgisayar', 'DB-0042', '2026-07-15', null),
+  ('00000000-0000-4000-8000-000000000004', 'Stüdyo giriş kartı', null, '2026-07-15', null),
+  ('00000000-0000-4000-8000-000000000002', 'Telsiz', 'TS-07', '2026-09-01', null),
+  ('00000000-0000-4000-8000-000000000001', 'Kurgu istasyonu anahtarı', null, '2021-11-03', '2024-05-10');

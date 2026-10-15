@@ -55,6 +55,22 @@ export type PuantajSatiri = {
   fazlaSaat: number;
 };
 
+/** bas ile bit arasındaki aylar ("YYYY-MM"), iki uç dahil. */
+export function aylar(bas: string, bit: string): string[] {
+  const sonuc: string[] = [];
+  let [y, m] = bas.slice(0, 7).split("-").map(Number);
+  const [sy, sm] = bit.slice(0, 7).split("-").map(Number);
+  while (y < sy || (y === sy && m <= sm)) {
+    sonuc.push(`${y}-${String(m).padStart(2, "0")}`);
+    m++;
+    if (m === 13) {
+      m = 1;
+      y++;
+    }
+  }
+  return sonuc;
+}
+
 export function ayinGunleri(ay: string): string[] {
   // ay: "YYYY-MM"
   const gunler: string[] = [];

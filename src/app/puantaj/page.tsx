@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { FazlaCalismaEngeli } from "@/lib/donem-belge";
 import { AppHeader } from "@/components/app-header";
 import { ModulKapali } from "@/components/modul-kapali";
 import { PuantajTablosu } from "@/components/puantaj-tablosu";
@@ -12,6 +13,15 @@ import { AY_RE, ayAdi, ayKaydir, puantajYukle } from "@/lib/puantaj-veri";
 import { bugunIso } from "@/lib/isg";
 import { formatTarih } from "@/lib/utils";
 import { KOD_STIL } from "@/lib/puantaj-stil";
+
+const ENGEL_METNI: Record<FazlaCalismaEngeli, string> = {
+  yas: "18 yaşından küçük çalışana fazla çalışma yaptırılamaz",
+  gebelik: "gebe çalışana fazla çalışma yaptırılamaz",
+  emzirme: "doğum sonrası ve emzirme döneminde fazla çalışma yaptırılamaz",
+  kismi: "kısmi süreli çalışana fazla çalışma yaptırılamaz",
+  geri_alindi: "fazla çalışma onayını geri aldı",
+  onay_yok: "fazla çalışma onay belgesi yok",
+};
 
 export default async function PuantajSayfasi({ searchParams }: { searchParams: Promise<{ ay?: string }> }) {
   const supabase = await createClient();
@@ -130,6 +140,21 @@ export default async function PuantajSayfasi({ searchParams }: { searchParams: P
           </section>
         )}
 
+        {v.engeller.map((e) => (
+          <div key={`${e.kisiId}:${e.neden}`} className="border-l-[3px] border-[var(--warn)] bg-card px-4 py-3">
+            <div className="font-bold">
+              {e.adSoyad}:{" "}
+              {ENGEL_METNI[e.neden]}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Fazla çalışma girilen gün: {e.gunler.map((g) => formatTarih(g, false)).join(", ")}.{" "}
+              {e.neden === "onay_yok" && "Onay belgesini kişinin iş dönemindeki satırdan indirip imzalat. "}
+              <span className="font-mono text-[12px]">
+                Fazla Çalışma Yön. md. {e.neden === "onay_yok" || e.neden === "geri_alindi" ? 9 : 8}
+              </span>
+            </div>
+          </div>
+        ))}
         {v.uyarilar.map((u) => (
           <div key={u.kisiId} className="border-l-[3px] border-[var(--warn)] bg-card px-4 py-3">
             <div className="font-bold">

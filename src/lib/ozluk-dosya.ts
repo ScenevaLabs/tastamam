@@ -40,6 +40,8 @@ const DONEM_BELGE_DOSYA_KODU: Record<IsGirisiBelgeTipi, string> = {
   // dropdown'u. Buradaki kod, ileride biri bu standart adla kaydederse diye bırakıldı.
   fesih_bildirimi: "fesih_bildirimi",
   yillik_izin_yazisi: "yillik_izin",
+  fazla_calisma_onayi: "fazla_calisma_onayi",
+  calisma_belgesi: "calisma_belgesi",
 };
 
 // İSG belgeleri (8 Ekim 2026) kişi klasörünün altındaki İSG/ klasöründe,
@@ -330,7 +332,7 @@ export type BelgeHedefParams =
       cikisTarihi: string | null;
       /** "puantaj_cizelgesi": aylık imzalı çalışma çizelgesi (0024); dönem
        *  evrak listesinde yer almaz, dosyası dönem klasörüne gider. */
-      belgeTipi: IsGirisiBelgeTipi | "puantaj_cizelgesi";
+      belgeTipi: IsGirisiBelgeTipi | "puantaj_cizelgesi" | "ucret_pusulasi";
       /** Dosya adındaki tarih; verilmezse tipe göre giriş ya da çıkış
        *  tarihi (yıllık izin formunda iznin ilk günü verilir). */
       dosyaTarihi?: string;
@@ -352,7 +354,9 @@ export type BelgeHedefParams =
     }
   /** İşyeri belgesi (risk değerlendirmesi, acil durum planı, tatbikat): kişiye
    *  bağlı değil, özlük kökünün altında "İSG İşyeri" klasörü. */
-  | { tur: "isyeri"; kod: string; tarih: string };
+  | { tur: "isyeri"; kod: string; tarih: string }
+  /** Durum kaydının belgesi (0030): kişi klasörünün kökünde, tarih_isim_tür adıyla. */
+  | { tur: "durum"; adSoyad: string; varsayilanDurum: "aktif" | "pasif"; kod: string; tarih: string };
 
 export const ISYERI_KLASOR_ADI = "İSG İşyeri";
 
@@ -368,6 +372,10 @@ async function belgeHedefi(
     return { yol: `${ozlukKoku()}/${ISYERI_KLASOR_ADI}/${dosyaAdi}`, dosyaAdi };
   }
   const kisiYol = await kisiKlasoruYolu(h.adSoyad, h.varsayilanDurum);
+  if (h.tur === "durum") {
+    const dosyaAdi = `${tarihNoktali(h.tarih)}_${isimBitisik(h.adSoyad)}_${h.kod}.${uzanti}`;
+    return { yol: `${kisiYol}/${dosyaAdi}`, dosyaAdi };
+  }
   if (h.tur === "kaza") {
     const dosyaAdi = `${tarihNoktali(h.olayTarihi)}_${isimBitisik(h.adSoyad)}_kaza_${h.belge}.${uzanti}`;
     return { yol: `${kisiYol}/${ISG_KLASOR_ADI}/${dosyaAdi}`, dosyaAdi };
@@ -388,7 +396,12 @@ async function belgeHedefi(
     (h.belgeTipi === "isegiris_bildirgesi" || h.belgeTipi === "sozlesme"
       ? h.girisTarihi
       : (h.cikisTarihi ?? h.girisTarihi));
-  const kod = h.belgeTipi === "puantaj_cizelgesi" ? "puantaj" : DONEM_BELGE_DOSYA_KODU[h.belgeTipi];
+  const kod =
+    h.belgeTipi === "puantaj_cizelgesi"
+      ? "puantaj"
+      : h.belgeTipi === "ucret_pusulasi"
+        ? "ucret_pusulasi"
+        : DONEM_BELGE_DOSYA_KODU[h.belgeTipi];
   const dosyaAdi = `${tarihNoktali(dosyaTarihi)}_${isimBitisik(h.adSoyad)}_${kod}.${uzanti}`;
   return { yol: `${donemYol}/${dosyaAdi}`, dosyaAdi };
 }

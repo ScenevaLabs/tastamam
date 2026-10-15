@@ -14,6 +14,11 @@ import {
 } from "@/app/actions";
 import { BelgeSatiri } from "@/components/belge-satiri";
 import { KvkkIndirDugmesi } from "@/components/sablon-formlari";
+import { DonemBelgesiIndir, FazlaCalismaGeriAlma, PusulaSatiri } from "@/components/donem-formlari";
+import { DurumBolumu, KisiAyrintiFormu, ZimmetBolumu } from "@/components/kisi-durum-formlari";
+import { besCaymaSonGun, type KisiDurum } from "@/lib/durum";
+import { BES, gunFarki, tamYil } from "@/lib/mevzuat";
+import { fazlaCalismaVar, kosulluBelgeler, pusulaAylari, saklamaBitisi, takipBaslangici } from "@/lib/donem-belge";
 import { IsgBelgeSatiri } from "@/components/isg-belge-satiri";
 import { IsgPaketYukleme } from "@/components/isg-paket-yukleme";
 import { bugunIso, isgOzeti } from "@/lib/isg";
@@ -42,6 +47,7 @@ import {
   type MailGonderimKaydi,
   KAZA_TURU_ADI,
   type IsKazasi,
+  SABIT_DONEM_BELGE_TIPLERI,
 } from "@/lib/types";
 
 function ChevronIcon() {
@@ -82,6 +88,9 @@ export default async function KisiDetay({
     { data: donemler },
     puantajVeri,
     { data: kazalar },
+    { data: pusulalar },
+    { data: durumlar },
+    { data: zimmetler },
   ] = await Promise.all([
     supabase.from("kisi").select("*").eq("id", id).maybeSingle<Kisi>(),
     ayarlarSatiri(),
@@ -97,6 +106,11 @@ export default async function KisiDetay({
     puantajBelgeVerisiYukle(supabase, bugunIso(), [id]),
     // İş kazası kayıtları (İSG modülü, 0026; tablo yoksa boş döner).
     supabase.from("is_kazasi").select("*").eq("kisi_id", id).order("olay_tarihi", { ascending: false }).returns<IsKazasi[]>(),
+    // Ücret pusulaları (0029; tablo yoksa boş döner).
+    supabase.from("ucret_pusulasi").select("ay").eq("kisi_id", id),
+    // Duruma bağlı kayıtlar ve zimmet (0030; tablo yoksa boş döner).
+    supabase.from("kisi_durum").select("*").eq("kisi_id", id).order("baslangic", { ascending: false }).returns<KisiDurum[]>(),
+    supabase.from("zimmet").select("id, esya, seri_no, verilis, iade").eq("kisi_id", id).order("verilis"),
   ]);
 
   if (!kisi) notFound();
@@ -144,6 +158,35 @@ export default async function KisiDetay({
     ]),
   );
 
+  // Koşullu dönem belgeleri ve ücret pusulaları (0029): takip başlangıcından sonrası.
+  const bugun = bugunIso();
+  const takipBaslangic = takipBaslangici(ayarlarSatiri_, bugun);
+  const pusulaVar = new Set((pusulalar ?? []).map((p) => String(p.ay).slice(0, 7)));
+  const donemEk = new Map(
+    (donemler ?? []).map((d) => [
+      d.id,
+      {
+        kosullu: kosulluBelgeler(d, {
+          fazlaCalisma: fazlaCalismaVar(puantajVeri.elle, id, d, takipBaslangic),
+          baslangic: takipBaslangic,
+        }),
+        pusulaAylari: pusulaAylari(d, takipBaslangic, bugun),
+      },
+    ]),
+  );
+  // İşten ayrılmış kişide KVKK saklama süresi (çıkış yılını izleyen yılbaşından 10 yıl).
+  const sonCikis = aktifDonem
+    ? null
+    : ((donemler ?? []).map((d) => d.cikis_tarihi).filter((c): c is string => !!c).sort().at(-1) ?? null);
+  const saklamaSonu = sonCikis ? saklamaBitisi(sonCikis) : null;
+  const iadeBekleyen = (zimmetler ?? []).filter((z) => !z.iade);
+  const izinBitisi = (durumlar ?? [])
+    .filter((d) => d.tur === "calisma_izni" && d.bitis)
+    .map((d) => d.bitis!)
+    .sort()
+    .at(-1);
+  const besGerekli = !!aktifDonem && !!kisi.dogum_tarihi && tamYil(kisi.dogum_tarihi, bugun) < BES.yasSiniri.deger;
+
   const odenecekToplam = (donemler ?? [])
     .filter((d) => d.odeme_durumu === "yok")
     .reduce(
@@ -177,6 +220,24 @@ export default async function KisiDetay({
               {formatPara(odenecekToplam)}
             </span>
           </div>
+        )}
+        {!aktifDonem && iadeBekleyen.length > 0 && (
+          <p className="mt-2 text-sm font-bold text-[var(--warn)]">
+            İşten ayrıldı ama {iadeBekleyen.length} zimmet iade alınmadı: {iadeBekleyen.map((z) => z.esya).join(", ")}.
+          </p>
+        )}
+        {aktifDonem && izinBitisi && gunFarki(bugun, izinBitisi) <= 60 && (
+          <p className="mt-2 text-sm font-bold text-[var(--warn)]">
+            Çalışma izni {formatTarih(izinBitisi)} tarihinde {izinBitisi < bugun ? "bitti" : "bitiyor"}; uzatma başvurusunu kontrol et.
+          </p>
+        )}
+        {saklamaSonu && (
+          <p className={`mt-2 text-sm ${saklamaSonu <= bugun ? "font-bold text-[var(--warn)]" : "text-muted-foreground"}`}>
+            {saklamaSonu <= bugun
+              ? `Kişisel verilerin saklama süresi ${formatTarih(saklamaSonu)} tarihinde doldu; dosyayı sil ya da anonimleştir.`
+              : `Kişisel veriler ${formatTarih(saklamaSonu)} tarihine kadar saklanır, sonra silinir.`}{" "}
+            <span className="font-mono text-[12px]">5510 md. 86 · KVKK md. 7</span>
+          </p>
         )}
         {(kazalar ?? [])
           .filter((z) => z.tur !== "ramak_kala" && !z.bildirildi_tarihi)
@@ -272,6 +333,29 @@ export default async function KisiDetay({
         </div>
         </div>
 
+        <div className="border border-border bg-card">
+          <h2 className="border-b border-border px-4 py-3.5 text-[18px] font-bold sm:px-5">Çalışan bilgileri</h2>
+          <KisiAyrintiFormu
+            kisiId={kisi.id}
+            engelli={!!kisi.engelli}
+            kismiSureli={!!kisi.kismi_sureli}
+            besKatilim={kisi.bes_katilim ?? null}
+            besCayma={kisi.bes_cayma ?? null}
+            besCaymaSonGun={kisi.bes_katilim ? besCaymaSonGun(kisi.bes_katilim) : null}
+            besGerekli={besGerekli}
+          />
+        </div>
+
+        <div className="border border-border bg-card">
+          <h2 className="border-b border-border px-4 py-3.5 text-[18px] font-bold sm:px-5">Durumlar</h2>
+          <DurumBolumu kisiId={kisi.id} durumlar={durumlar ?? []} />
+        </div>
+
+        <div className="border border-border bg-card">
+          <h2 className="border-b border-border px-4 py-3.5 text-[18px] font-bold sm:px-5">Zimmet</h2>
+          <ZimmetBolumu kisiId={kisi.id} zimmetler={zimmetler ?? []} />
+        </div>
+
         {(isgModulu || (kazalar ?? []).length > 0) && (
           <div className="border border-border bg-card">
             <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-4 py-3.5 sm:px-5">
@@ -330,7 +414,16 @@ export default async function KisiDetay({
             const belgeMap = donemBelgeMap.get(donem.id) ?? new Map();
             let variSayisi = 0;
             let yoksaySayisi = 0;
-            for (const tip of DONEM_BELGE_TIPLERI) {
+            const ek = donemEk.get(donem.id)!;
+            // Gösterilen belgeler: her dönemde istenenler + bu dönemde gereken
+            // koşullular + daha önce kaydı olan koşullular.
+            const gosterilen = DONEM_BELGE_TIPLERI.filter(
+              (t) => SABIT_DONEM_BELGE_TIPLERI.includes(t) || ek.kosullu.includes(t) || belgeMap.has(t),
+            );
+            const sayilan = DONEM_BELGE_TIPLERI.filter(
+              (t) => SABIT_DONEM_BELGE_TIPLERI.includes(t) || ek.kosullu.includes(t),
+            );
+            for (const tip of sayilan) {
               const durum = belgeMap.get(tip)?.durum;
               if (durum === "var") variSayisi++;
               if (durum === "yoksayildi") yoksaySayisi++;
@@ -340,7 +433,12 @@ export default async function KisiDetay({
             if (donem.odeme_durumu === "yoksayildi") yoksaySayisi++;
             const puantajlar = puantajByDonem.get(donem.id) ?? [];
             const eksikSayisi =
-              DONEM_BELGE_TIPLERI.length + 1 - variSayisi - yoksaySayisi + puantajlar.filter((p) => p.eksik).length;
+              sayilan.length +
+              1 -
+              variSayisi -
+              yoksaySayisi +
+              puantajlar.filter((p) => p.eksik).length +
+              ek.pusulaAylari.filter((a) => !pusulaVar.has(a)).length;
             const acik = donem.durum === "aktif" && !donem.cikis_tarihi;
 
             return (
@@ -366,10 +464,13 @@ export default async function KisiDetay({
                   )}
                 </summary>
                 <div className="border-t border-border px-4">
-                  {DONEM_BELGE_TIPLERI.map((tip) => {
+                  {gosterilen.map((tip) => {
                     const row = belgeMap.get(tip);
+                    const uretilir = tip === "fazla_calisma_onayi" || tip === "calisma_belgesi";
                     return (
+                      <div key={tip}>
                       <BelgeSatiri
+                        ek={uretilir && row?.durum !== "var" ? <DonemBelgesiIndir isGirisiId={donem.id} ad={tip} /> : undefined}
                         key={tip}
                         label={DONEM_BELGE_ETIKETLERI[tip]}
                         durum={row?.durum}
@@ -388,8 +489,19 @@ export default async function KisiDetay({
                           belge_tipi: tip,
                         }}
                       />
+                      {tip === "fazla_calisma_onayi" && row?.durum === "var" && (
+                        <FazlaCalismaGeriAlma
+                          kisiId={kisi.id}
+                          isGirisiId={donem.id}
+                          geriAlma={donem.fazla_calisma_geri_alma ?? null}
+                        />
+                      )}
+                      </div>
                     );
                   })}
+                  {ek.pusulaAylari.map((a) => (
+                    <PusulaSatiri key={`pusula-${a}`} kisiId={kisi.id} ay={a} ayAdi={ayAdi(a)} yuklendi={pusulaVar.has(a)} />
+                  ))}
                   {puantajlar.map((p) => (
                     <PuantajBelgeSatiri
                       key={p.ay}

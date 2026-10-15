@@ -112,3 +112,62 @@ export async function acikRizaAyari(acik: boolean): Promise<{ error: string | nu
   revalidatePath("/kisi/[id]", "page");
   return { error: null };
 }
+
+/** Fazla çalışma onay belgesini ya da çalışma belgesini dönemin bilgileriyle hazırlar. */
+export async function donemBelgesiUret(
+  isGirisiId: string,
+  ad: "fazla_calisma_onayi" | "calisma_belgesi",
+): Promise<Indirme> {
+  if (ad !== "fazla_calisma_onayi" && ad !== "calisma_belgesi") return { error: "Bilinmeyen belge." };
+  const supabase = await createClient();
+  const [{ data: d }, { data: ayarlar }] = await Promise.all([
+    supabase
+      .from("is_girisi")
+      .select("giris_tarihi, cikis_tarihi, meslek_adi, kisi:kisi_id(ad_soyad, tc_kimlik_no)")
+      .eq("id", isGirisiId)
+      .maybeSingle<{
+        giris_tarihi: string;
+        cikis_tarihi: string | null;
+        meslek_adi: string | null;
+        kisi: { ad_soyad: string; tc_kimlik_no: string | null } | null;
+      }>(),
+    supabase.from("ayarlar").select("sirket_unvani, sirket_adresi").eq("id", true).maybeSingle(),
+  ]);
+  if (!d?.kisi) return { error: "Dönem bulunamadı." };
+  if (ad === "calisma_belgesi" && !d.cikis_tarihi) return { error: "Çalışma belgesi çıkış tarihi girilince hazırlanır." };
+  if (!ayarlar?.sirket_unvani || !ayarlar?.sirket_adresi) {
+    return { error: "Önce Ayarlar'da şirket unvanını ve adresini gir." };
+  }
+  try {
+    const { icerik } = await gecerliSablon(supabase, ad);
+    const buffer = sablonDoldur(icerik, {
+      AD_SOYAD: d.kisi.ad_soyad,
+      TC: d.kisi.tc_kimlik_no ?? "",
+      MESLEK: d.meslek_adi ?? "",
+      BASLAMA_TARIHI: tarihSlash(d.giris_tarihi),
+      BITIS_TARIHI: d.cikis_tarihi ? tarihSlash(d.cikis_tarihi) : "",
+      TARIH: tarihSlash(bugunIso()),
+      SIRKET_UNVANI: ayarlar.sirket_unvani.toLocaleUpperCase("tr-TR"),
+      SIRKET_ADRESI: ayarlar.sirket_adresi,
+    });
+    const ek = ad === "fazla_calisma_onayi" ? "fazla_calisma_onayi" : "calisma_belgesi";
+    return { error: null, base64: buffer.toString("base64"), dosyaAdi: `${d.kisi.ad_soyad} ${ek}.docx` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Belge hazırlanamadı." };
+  }
+}
+
+/** İşçinin fazla çalışma onayını geri aldığı gün (boşsa geri alma kaldırılır).
+ *  Bu günden 30 gün sonra fazla çalışma yaptırılamaz (Yön. md. 9). */
+export async function fazlaCalismaGeriAl(formData: FormData): Promise<{ error: string | null }> {
+  const id = formData.get("is_girisi_id") as string;
+  const kisiId = formData.get("kisi_id") as string;
+  const tarih = (formData.get("tarih") as string) || null;
+  if (tarih && !/^\d{4}-\d{2}-\d{2}$/.test(tarih)) return { error: "Tarih geçersiz." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("is_girisi").update({ fazla_calisma_geri_alma: tarih }).eq("id", id);
+  if (error) return { error: `Kaydedilemedi: ${error.message}` };
+  revalidatePath(`/kisi/${kisiId}`);
+  revalidatePath("/puantaj");
+  return { error: null };
+}

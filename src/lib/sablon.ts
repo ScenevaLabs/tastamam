@@ -11,7 +11,15 @@ import type { createClient } from "@/lib/supabase/server";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-export const SABLON_ADLARI = ["sozlesme_belirli", "sozlesme_belirsiz", "kvkk_aydinlatma", "kvkk_acik_riza"] as const;
+export const SABLON_ADLARI = [
+  "sozlesme_belirli",
+  "sozlesme_belirsiz",
+  "kvkk_aydinlatma",
+  "kvkk_acik_riza",
+  "fazla_calisma_onayi",
+  "calisma_belgesi",
+  "zimmet_tutanagi",
+] as const;
 export type SablonAdi = (typeof SABLON_ADLARI)[number];
 
 const SOZLESME_ALANLARI = [
@@ -37,6 +45,18 @@ export const SABLONLAR: Record<SablonAdi, { etiket: string; dosya: string; alanl
   },
   kvkk_aydinlatma: { etiket: "KVKK aydınlatma metni", dosya: "kvkk-aydinlatma.docx", alanlar: KVKK_ALANLARI },
   kvkk_acik_riza: { etiket: "Açık rıza beyanı", dosya: "kvkk-acik-riza.docx", alanlar: KVKK_ALANLARI },
+  fazla_calisma_onayi: { etiket: "Fazla çalışma onay belgesi", dosya: "fazla-calisma-onayi.docx", alanlar: KVKK_ALANLARI },
+  calisma_belgesi: {
+    etiket: "Çalışma belgesi",
+    dosya: "calisma-belgesi.docx",
+    alanlar: [...KVKK_ALANLARI, "MESLEK", "BASLAMA_TARIHI", "BITIS_TARIHI"],
+  },
+  zimmet_tutanagi: {
+    etiket: "Zimmet tutanağı",
+    dosya: "zimmet-tutanagi.docx",
+    // ESYA, SERI_NO, VERILIS {#ESYALAR}…{/ESYALAR} döngüsünün içinde, her eşya için bir satır.
+    alanlar: [...KVKK_ALANLARI, "ESYA", "SERI_NO", "VERILIS"],
+  },
 };
 
 export const ALAN_ACIKLAMASI: Record<string, string> = {
@@ -47,8 +67,11 @@ export const ALAN_ACIKLAMASI: Record<string, string> = {
   UCRET: "ücret (ör. 42.000,00 TL)",
   IMZA_TARIHI: "imza tarihi",
   BASLAMA_TARIHI: "işe başlama tarihi",
-  BITIS_TARIHI: "sözleşmenin bitiş tarihi",
+  BITIS_TARIHI: "bitiş / çıkış tarihi",
   TARIH: "belgenin tarihi",
+  ESYA: "eşya ({#ESYALAR}…{/ESYALAR} içinde)",
+  SERI_NO: "seri / demirbaş no",
+  VERILIS: "teslim tarihi",
   SIRKET_UNVANI: "şirket unvanı (Ayarlar)",
   SIRKET_ADRESI: "şirket adresi (Ayarlar)",
 };
@@ -80,7 +103,7 @@ function hataMetni(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function sablonDoldur(icerik: Buffer, veri: Record<string, string>): Buffer {
+export function sablonDoldur(icerik: Buffer, veri: Record<string, unknown>): Buffer {
   const doc = (() => {
     try {
       return docxtemplater(icerik);

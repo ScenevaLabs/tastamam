@@ -11,9 +11,11 @@ export async function takvimVerisiYukle(
   bugun: string,
   ayarlar: Record<string, unknown> | null,
 ): Promise<TakvimGirdisi> {
-  const [kisiler, donemler, donemBelgeleri, isgBelgeleri, isyeriBelgeleri, kazalar, izinler, aylar] = await Promise.all([
-    supabase.from("kisi").select("id, ad_soyad, dogum_tarihi"),
-    supabase.from("is_girisi").select("id, kisi_id, giris_tarihi, cikis_tarihi"),
+  const [kisiler, donemler, donemBelgeleri, isgBelgeleri, isyeriBelgeleri, kazalar, izinler, aylar, durumlar] = await Promise.all([
+    // "*": 0030 uygulanmadıysa BES sütunları yok, sorgu yine çalışsın.
+    supabase.from("kisi").select("*"),
+    // "*": 0029 uygulanmadıysa fazla_calisma_geri_alma sütunu yok, sorgu yine çalışsın.
+    supabase.from("is_girisi").select("*"),
     supabase
       .from("is_girisi_belge")
       .select("is_girisi_id, belge_tipi, durum")
@@ -23,6 +25,7 @@ export async function takvimVerisiYukle(
     supabase.from("is_kazasi").select("*"),
     supabase.from("yillik_izin").select("kisi_id, baslangic, gun"),
     supabase.from("puantaj_ay").select("ay").not("kapandi_at", "is", null),
+    supabase.from("kisi_durum").select("kisi_id, tur, baslangic, bitis, tamamlandi"),
   ]);
   const baslangic = ayarlar?.puantaj_baslangic as string | null | undefined;
   return {
@@ -38,5 +41,6 @@ export async function takvimVerisiYukle(
     kazalar: (kazalar.data ?? []) as IsKazasi[],
     izinler: izinler.data ?? [],
     kapaliAylar: (aylar.data ?? []).map((a) => String(a.ay).slice(0, 7)),
+    durumlar: durumlar.data ?? [],
   };
 }
