@@ -4,7 +4,10 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import type { createClient } from "@/lib/supabase/server";
 
-// Belge şablonları (15 Ekim 2026): iş sözleşmesi (belirli / belirsiz süreli),
+// Belge şablonları (15 Ekim 2026). Not: bu kurulumun belirli süreli sözleşmesi
+// kullanıcının kendi metnidir; açık kaynak sürümde public-katman/templates/
+// altındaki genel örnek bunun yerine geçer (public-disa-aktar.mjs).
+// iş sözleşmesi (belirli / belirsiz süreli),
 // KVKK aydınlatma metni, açık rıza beyanı. Uygulama örnek şablonlarla gelir
 // (templates/); kullanıcı Ayarlar'dan aynı yer tutucuları içeren kendi .docx
 // şablonunu yüklerse o kullanılır (sablon tablosu, migration 0028).

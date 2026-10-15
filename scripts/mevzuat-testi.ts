@@ -421,7 +421,7 @@ test("örnek şablonlar kurgu veriyle doluyor, alan ya da şirkete özgü ifade 
     assert.ok(!/[{}]/.test(metin), `${ad}: doldurulmamış alan kaldı`);
     assert.ok(!/undefined/.test(metin), `${ad}: undefined yazıldı`);
     // Şirket ve kişi adları dışa aktarım taramasında aranır (public-disa-aktar.mjs).
-    assert.ok(!/anadolu|yapımcı|idare/i.test(metin), `${ad}: başka bir şablondan kalan ifade`);
+    assert.ok(!/yapımcı|idare/i.test(metin), `${ad}: başka bir şablondan kalan ifade`);
     const k = sablonDogrula(await ornekSablon(ad), ad);
     assert.equal(k.error, null);
     if (k.error === null) assert.deepEqual(k.bilinmeyen, [], `${ad}: tanınmayan alan`);
