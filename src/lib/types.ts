@@ -187,6 +187,7 @@ export type Ayarlar = {
   acik_moduller: Modul[];
   isg_tehlike_sinifi?: "az" | "tehlikeli" | "cok" | null;
   hatirlatma_gun?: number;
+  hatirlatma_maili?: boolean;
   created_at: string;
   updated_at: string;
 };

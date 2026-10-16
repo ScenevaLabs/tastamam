@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ayarlarSatiri, oturumEposta } from "@/lib/istek";
 import { ProfilMenu } from "@/components/profil-menu";
+import { MobilMenu } from "@/components/mobil-menu";
 import { Wordmark } from "@/components/wordmark";
 import { cn } from "@/lib/utils";
 
@@ -18,50 +19,73 @@ const MENU: { anahtar: MenuAnahtari; etiket: string; href: string; modul?: Modul
   { anahtar: "odemeler", etiket: "Ödemeler", href: "/odemeler" },
 ];
 
-/** Oturum açılmış her sayfanın üst menüsü. */
+/** Defter çift çizgisi: logonun altındaki işaretle aynı; seçili sekmenin altında durur. */
+function CiftCizgi() {
+  return <span aria-hidden className="absolute inset-x-3 bottom-0 h-[7px] border-y-2 border-foreground" />;
+}
+
+function sekmeSinifi(secili: boolean) {
+  return cn(
+    "relative shrink-0 whitespace-nowrap px-3 pt-2 pb-[9px] text-[15px] transition-colors",
+    secili ? "font-bold text-foreground" : "font-medium text-muted-foreground hover:text-foreground",
+  );
+}
+
+/** Oturum açılmış her sayfanın üst menüsü. Geniş ekranda sekmeler; dar ekranda
+ *  (lg altı) sağ üstte tek menü düğmesi, Ayarlar ve profil de onun içinde. */
 export async function AppHeader({ aktif }: { aktif?: MenuAnahtari }) {
   const [email, ayarlar] = await Promise.all([oturumEposta(), ayarlarSatiri()]);
+  const menu = MENU.filter((m) => !m.modul || (ayarlar?.acik_moduller ?? []).includes(m.modul));
+  const profil = {
+    email: email ?? undefined,
+    unvan: (ayarlar?.profil_unvan as string | null | undefined) ?? null,
+    iletisim: (ayarlar?.profil_iletisim as string | null | undefined) ?? null,
+  };
 
   return (
-    <header className="w-full border-b border-border bg-card">
-      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 sm:px-8">
+    <header className="w-full border-b border-border bg-card [--ust-menu-h:64px]">
+      {/* Logonun çift çizgisi ile seçili sekmenin çift çizgisi aynı alt hizada (items-end). */}
+      <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-x-6 px-4 sm:px-8 lg:h-[76px] lg:items-end lg:pb-3">
         <Link href="/" aria-label="Tastamam ana sayfa" className="shrink-0">
           <Wordmark />
         </Link>
-        <nav aria-label="Ana menü" className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto sm:flex-1">
-          {MENU.filter((m) => !m.modul || (ayarlar?.acik_moduller ?? []).includes(m.modul)).map((m) => (
+        <nav aria-label="Ana menü" className="hidden flex-1 lg:flex">
+          {menu.map((m) => (
             <Link
               key={m.anahtar}
               href={m.href}
               aria-current={aktif === m.anahtar ? "page" : undefined}
-              className={cn(
-                "shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-[15px] transition-colors",
-                aktif === m.anahtar
-                  ? "border-foreground font-bold text-foreground"
-                  : "border-transparent font-medium text-muted-foreground hover:text-foreground"
-              )}
+              className={sekmeSinifi(aktif === m.anahtar)}
             >
               {m.etiket}
+              {aktif === m.anahtar && <CiftCizgi />}
             </Link>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-4 text-sm">
+        <div className="ml-auto hidden items-end gap-2 text-sm lg:flex">
           {ayarlar?.sirket_unvani && (
-            <span className="hidden text-muted-foreground md:inline">{ayarlar.sirket_unvani}</span>
+            <span className="hidden max-w-[260px] truncate pb-[9px] text-muted-foreground xl:inline">
+              {ayarlar.sirket_unvani}
+            </span>
           )}
           <Link
             href="/ayarlar"
             aria-current={aktif === "ayarlar" ? "page" : undefined}
-            className={cn(
-              aktif === "ayarlar" ? "font-bold text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
+            className={sekmeSinifi(aktif === "ayarlar")}
           >
             Ayarlar
+            {aktif === "ayarlar" && <CiftCizgi />}
           </Link>
-          <ProfilMenu
-            email={email ?? undefined}
-            unvan={ayarlar?.profil_unvan ?? null}
-            iletisim={ayarlar?.profil_iletisim ?? null}
+          <div className="mb-[7px]">
+            <ProfilMenu {...profil} />
+          </div>
+        </div>
+        <div className="ml-auto lg:hidden">
+          <MobilMenu
+            ogeler={[...menu, { anahtar: "ayarlar", etiket: "Ayarlar", href: "/ayarlar" }]}
+            aktif={aktif}
+            sirket={(ayarlar?.sirket_unvani as string | null | undefined) ?? null}
+            {...profil}
           />
         </div>
       </div>

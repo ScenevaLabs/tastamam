@@ -49,7 +49,7 @@ müşavirin hazırlamaya devam eder; Tastamam ona gidecek bildirimi zamanında h
   çalışanın çalışma izni, çalışma koşulu değişikliği, savunma tutanağı; BES katılım ve
   cayma; engelli kontenjanı uyarısı.
 - **Zimmet:** teslim edilen eşyalar, iade takibi ve zimmet tutanağı.
-- **Takvim:** bütün yasal süreler tek listede; yaklaşınca sabah maili. İşten ayrılanların
+- **Takvim:** bütün yasal süreler tek listede; istersen yaklaşınca sabah maili. İşten ayrılanların
   kişisel verilerinin saklama süresi dolunca hatırlatır.
 - **Belgeler nerede dursun:** bu bilgisayardaki bir klasör (OneDrive/Dropbox eşitleme
   klasörü olabilir), Supabase Storage, OneDrive ya da Google Drive.
@@ -60,6 +60,16 @@ Geliştiriliyor: muhasebeden gelen ücret pusulalarının mailden otomatik dosya
 <tr><td><img src="docs/ekranlar/calisanlar.png" alt="Çalışanlar"></td><td><img src="docs/ekranlar/kisi.png" alt="Çalışan dosyası"></td></tr>
 <tr><td><img src="docs/ekranlar/is-kazasi.png" alt="İş kazası"></td><td><img src="docs/ekranlar/puantaj.png" alt="Puantaj"></td></tr>
 <tr><td><img src="docs/ekranlar/isg.png" alt="İSG"></td><td><img src="docs/ekranlar/izin.png" alt="Yıllık izin"></td></tr>
+</table>
+
+### Telefondan
+
+Tastamam'ı kendi domain'in üzerinden yayınlarsan telefondan da kullanabilirsin; ekranlar
+telefona göre düzenlenir, bütün sayfalar sağ üstteki menüde. Nasıl yapılacağı
+[KURULUM.md](KURULUM.md) içinde.
+
+<table>
+<tr><td width="50%"><img src="docs/ekranlar/mobil-takvim.png" alt="Telefonda takvim"></td><td width="50%"><img src="docs/ekranlar/mobil-menu.png" alt="Telefonda menü"></td></tr>
 </table>
 
 Ekranlardaki kişiler ve şirket kurgudur (`supabase/seed.sql`).
@@ -106,8 +116,12 @@ work accident records with the 3-business-day SGK notification countdown; overti
 and prohibition warnings, employment certificates and signed payslip archive; special
 statuses (pregnancy, maternity and nursing leave, night-work health reports, work permits,
 changes to working conditions) and equipment hand-over records; a single deadline
-calendar with a morning reminder e-mail. Documents can live in a local folder,
+calendar with an optional morning reminder e-mail. Documents can live in a local folder,
 Supabase Storage, OneDrive or Google Drive.
+
+**On your phone:** if you publish Tastamam on your own domain, you can use it from your
+phone as well; the screens adapt to mobile and every page is in the menu at the top right
+(see the screenshots above and [KURULUM.md](KURULUM.md)).
 
 The interface and documentation are in Turkish, since the rules are Turkish law.
 

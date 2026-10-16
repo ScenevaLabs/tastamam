@@ -169,10 +169,14 @@ export async function kazaHaberVer(formData: FormData): Promise<{ error: string 
 }
 
 export async function hatirlatmaGunuKaydet(formData: FormData): Promise<{ error: string | null }> {
-  const gun = Number(formData.get("hatirlatma_gun"));
-  if (!Number.isInteger(gun) || gun < 0 || gun > 30) return { error: "0 ile 30 arasında bir gün sayısı gir." };
+  const acik = formData.get("hatirlatma_maili") === "on";
+  const gun = Number(formData.get("hatirlatma_gun") ?? 3);
+  if (acik && (!Number.isInteger(gun) || gun < 0 || gun > 30)) return { error: "0 ile 30 arasında bir gün sayısı gir." };
   const supabase = await createClient();
-  const { error } = await supabase.from("ayarlar").update({ hatirlatma_gun: gun }).eq("id", true);
+  const { error } = await supabase
+    .from("ayarlar")
+    .update(acik ? { hatirlatma_maili: true, hatirlatma_gun: gun } : { hatirlatma_maili: false })
+    .eq("id", true);
   if (error) return { error: `Kaydedilemedi: ${error.message}` };
   revalidatePath("/takvim");
   return { error: null };

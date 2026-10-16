@@ -9,7 +9,7 @@ import { formatTarih } from "@/lib/utils";
 // Sabah hatırlatma maili (15 Ekim 2026). İki yerden çağrılır: kendi
 // bilgisayarında çalışan kurulumda src/instrumentation.ts'teki zamanlayıcı,
 // barındırmada (Netlify) /api/hatirlatma. Takvim modülü kapalıysa ya da bugün
-// zaten gönderildiyse bir şey yapmaz.
+// zaten gönderildiyse ya da sabah maili kapatıldıysa bir şey yapmaz.
 
 export type HatirlatmaSonucu = { durum: number; govde: Record<string, unknown> };
 
@@ -34,6 +34,7 @@ export async function hatirlatmaCalistir(): Promise<HatirlatmaSonucu> {
   if (!((ayarlar.acik_moduller as string[] | null) ?? []).includes("takvim")) {
     return { durum: 200, govde: { durum: "takvim modülü kapalı" } };
   }
+  if (ayarlar.hatirlatma_maili === false) return { durum: 200, govde: { durum: "sabah maili kapalı" } };
   if (ayarlar.hatirlatma_son_gonderim === bugun) return { durum: 200, govde: { durum: "bugün gönderildi" } };
 
   const alici = (ayarlar.takip_email as string | null) || (ayarlar.gonderen_email as string | null);
@@ -53,7 +54,7 @@ export async function hatirlatmaCalistir(): Promise<HatirlatmaSonucu> {
       <p>Günaydın. Süresi yaklaşan ${yeni.length === 1 ? "bir iş" : `${yeni.length} iş`} var:</p>
       ${tablo(yeni)}
       ${gecikmis.length ? `<p style="margin-top:20px">Süresi geçmiş, hâlâ açık görünenler:</p>${tablo(gecikmis)}` : ""}
-      <p style="margin-top:20px;color:#5D665F;font-size:13px">Yaptığın iş takvimden kendiliğinden düşer. Hatırlatma gününü Takvim sayfasından değiştirebilirsin.</p>
+      <p style="margin-top:20px;color:#5D665F;font-size:13px">Yaptığın iş takvimden kendiliğinden düşer. Hatırlatma gününü değiştirmek ya da maili kapatmak için Takvim sayfasına bak.</p>
     </div>`;
 
   const sonuc = await mailGonder({

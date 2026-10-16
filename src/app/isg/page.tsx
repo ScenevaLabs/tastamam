@@ -196,7 +196,9 @@ export default async function IsgSayfasi() {
         <section>
           <h2 className="mb-3 text-[18px] font-bold">İş kazaları, son 12 ay</h2>
           {gorunenKazalar.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Kayıt yok.</p>
+            <p className="border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              Son 12 ayda kayıt yok.
+            </p>
           ) : (
             <div className="border border-border bg-card">
               {gorunenKazalar.map((z) => {
@@ -208,7 +210,7 @@ export default async function IsgSayfasi() {
                     className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 px-4 py-3 last:border-b-0 hover:bg-muted/40"
                   >
                     <span className="w-24 font-mono text-[13px]">{formatTarih(z.olay_tarihi)}</span>
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                       <span className="font-medium">{z.kisi?.ad_soyad}</span>
                       <span className="text-muted-foreground"> · {z.aciklama.length > 60 ? `${z.aciklama.slice(0, 60)}…` : z.aciklama}</span>
                     </span>
@@ -230,23 +232,21 @@ export default async function IsgSayfasi() {
           )}
         </section>
 
-        <div className="flex flex-wrap items-start gap-6" id="isyeri">
-          <section className="min-w-0 flex-[2_1_520px]">
-            <h2 className="mb-3 text-[18px] font-bold">İşyeri belgeleri</h2>
-            <div className="border border-border bg-card">
+        <section id="isyeri">
+          <h2 className="mb-3 text-[18px] font-bold">İşyeri belgeleri</h2>
+          <div className="border border-border bg-card">
+            <div className="grid divide-y divide-border/60 md:grid-cols-3 md:divide-x md:divide-y-0">
               {isyeriTakip.map((b) => (
-                <div key={b.tip} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 px-4 py-3 last:border-b-0">
-                  <span className="min-w-0 flex-1 font-medium">
-                    {ISYERI_BELGE_ADI[b.tip]}
-                    <span className="block text-[13px] font-normal text-muted-foreground">
-                      {b.son ? `Son: ${formatTarih(b.son)}` : "Kayıt yok"}
-                    </span>
+                <div key={b.tip} className="flex flex-col gap-1 px-4 py-3">
+                  <span className="font-medium">{ISYERI_BELGE_ADI[b.tip]}</span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {b.son ? `Son: ${formatTarih(b.son)}` : "Kayıt yok"}
                   </span>
                   <span className="text-[13px]">
                     {b.kazaSonrasiYenilenmeli ? (
                       <span className="font-medium text-[var(--warn)]">İş kazasından sonra yenilenmeli</span>
                     ) : b.durum === "eksik" ? (
-                      <span className="text-[var(--warn)]">Tarihini gir</span>
+                      <span className="text-[var(--warn)]">Tarihini aşağıdan gir</span>
                     ) : (
                       <span className={b.durum === "tamam" ? "font-medium text-[var(--stamp)]" : "font-medium text-[var(--warn)]"}>
                         {b.durum === "tamam" ? "Güncel · " : "Yenileme "}
@@ -257,23 +257,25 @@ export default async function IsgSayfasi() {
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Risk değerlendirmesi ve acil durum planı {k.riskDegerlendirmeYil} yılda bir, tatbikat yılda bir yenilenir.
-              İş kazasından sonra risk değerlendirmesi süre beklenmeden yenilenir.{" "}
-              <span className="font-mono text-[12px]">
-                {ISG_DAYANAK.risk} · {ISG_DAYANAK.acilDurum}
-              </span>
-            </p>
-          </section>
-          <section className="min-w-0 flex-[1_1_320px] border border-border bg-card p-5">
-            <h2 className="mb-4 text-[18px] font-bold">Yapıldı olarak kaydet</h2>
-            <IsyeriBelgeFormu />
-          </section>
-        </div>
+            <div className="border-t border-border bg-muted/30 px-4 py-4">
+              <p className="mb-3 text-sm font-bold">Yapıldı olarak kaydet</p>
+              <IsyeriBelgeFormu />
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Risk değerlendirmesi ve acil durum planı {k.riskDegerlendirmeYil} yılda bir, tatbikat yılda bir yenilenir.
+            İş kazasından sonra risk değerlendirmesi süre beklenmeden yenilenir.{" "}
+            <span className="font-mono text-[12px]">
+              {ISG_DAYANAK.risk} · {ISG_DAYANAK.acilDurum}
+            </span>
+          </p>
+        </section>
 
-        <section id="sinif" className="max-w-2xl border border-border bg-card p-5">
+        <section id="sinif">
           <h2 className="mb-3 text-[18px] font-bold">Tehlike sınıfı</h2>
-          <TehlikeSinifiFormu sinif={sinif} />
+          <div className="border border-border bg-card p-4 sm:p-5">
+            <TehlikeSinifiFormu sinif={sinif} />
+          </div>
         </section>
       </div>
     </>

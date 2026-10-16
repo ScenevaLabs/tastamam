@@ -7,7 +7,9 @@ alter table is_girisi_belge drop constraint if exists is_girisi_belge_belge_tipi
 alter table is_girisi_belge add constraint is_girisi_belge_belge_tipi_check
   check (belge_tipi in (
     'isegiris_bildirgesi','sozlesme','ibraname','istenayrilis_bildirgesi','imzali_ciktisi',
-    'fesih_bildirimi','yillik_izin_yazisi','fazla_calisma_onayi','calisma_belgesi'
+    'fesih_bildirimi','yillik_izin_yazisi','fazla_calisma_onayi','calisma_belgesi',
+    -- 0018 öncesinden kalan dönem bazlı İSG satırları (kod okumuyor, silinmiyor).
+    'isg_egitim_sertifikasi','egitim_formu','saglik_raporu'
   ));
 
 -- İşçi fazla çalışma onayını 30 gün önceden yazılı bildirimle geri alabilir.

@@ -131,8 +131,7 @@ export default async function IzinSayfasi() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-start gap-6">
-          <section className="min-w-0 flex-[2_1_560px]">
+          <section className="min-w-0">
             <h2 className="mb-3 text-[18px] font-bold">İzin bakiyeleri</h2>
             {bakiyeler.length === 0 ? (
               <p className="text-sm text-muted-foreground">Aktif çalışan yok.</p>
@@ -205,27 +204,13 @@ export default async function IzinSayfasi() {
             )}
           </section>
 
-          <section className="min-w-0 flex-[1_1_320px] border border-border bg-card p-5">
-            <h2 className="mb-4 text-[18px] font-bold">İzin kaydı ekle</h2>
-            <IzinFormu kisiler={formKisileri} />
-          </section>
-        </div>
 
-        {cikislar.length > 0 && (
-          <section>
-            <h2 className="mb-1 text-[18px] font-bold">Çıkışta ödenecek izin</h2>
-            <p className="mb-3 max-w-3xl text-sm text-muted-foreground">
-              İş sözleşmesi biten çalışanın kullanmadığı yıllık izin günleri, çıkış tarihindeki ücretinden ödenir. Gün
-              çıkış günündeki bakiyeden hesaplanır; ücret girilmemişse asgari ücret esas alınır. Ödeyince işaretle.{" "}
-              <span className="font-mono text-[12px]">4857 md. 59</span>
-            </p>
-            <div className="border border-border bg-card">
-              {cikislar.map((c) => (
-                <CikisIzinSatiri key={c.isGirisiId} c={c} bugun={bugun} />
-              ))}
-            </div>
-          </section>
-        )}
+        <section>
+          <h2 className="mb-3 text-[18px] font-bold">İzin kaydı ekle</h2>
+          <div className="border border-border bg-card p-4 sm:p-5">
+            <IzinFormu kisiler={formKisileri} />
+          </div>
+        </section>
 
         <section>
           <h2 className="mb-3 text-[18px] font-bold">Son izinler</h2>
@@ -244,6 +229,22 @@ export default async function IzinSayfasi() {
             </div>
           )}
         </section>
+
+        {cikislar.length > 0 && (
+          <section>
+            <h2 className="mb-1 text-[18px] font-bold">Çıkışta ödenecek izin</h2>
+            <p className="mb-3 max-w-3xl text-sm text-muted-foreground">
+              İş sözleşmesi biten çalışanın kullanmadığı yıllık izin günleri, çıkış tarihindeki ücretinden ödenir. Gün
+              çıkış günündeki bakiyeden hesaplanır; ücret girilmemişse asgari ücret esas alınır. Ödeyince işaretle.{" "}
+              <span className="font-mono text-[12px]">4857 md. 59</span>
+            </p>
+            <div className="border border-border bg-card">
+              {cikislar.map((c) => (
+                <CikisIzinSatiri key={c.isGirisiId} c={c} bugun={bugun} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </>
   );

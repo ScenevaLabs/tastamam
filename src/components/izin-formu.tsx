@@ -54,24 +54,25 @@ export function IzinFormu({ kisiler }: { kisiler: IzinKisisi[] }) {
 
   return (
     <form action={handleSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="kisi_id">Çalışan</Label>
-        <select
-          id="kisi_id"
-          name="kisi_id"
-          value={kisiId}
-          onChange={(e) => degistir(setKisiId)(e.target.value)}
-          className="h-10 border border-input bg-transparent px-2 text-sm"
-        >
-          <option value="">Seç</option>
-          {kisiler.map((k) => (
-            <option key={k.id} value={k.id}>
-              {k.adSoyad} · {k.kalan === null ? "henüz hak yok" : `${k.kalan} gün kaldı`}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-wrap gap-4">
+      {/* Geniş ekranda tek satır: çalışan, tarihler, yol izni, kaydet. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_190px_190px_150px_auto] lg:items-end">
+        <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
+          <Label htmlFor="kisi_id">Çalışan</Label>
+          <select
+            id="kisi_id"
+            name="kisi_id"
+            value={kisiId}
+            onChange={(e) => degistir(setKisiId)(e.target.value)}
+            className="h-10 w-full min-w-0 border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="">Seç</option>
+            {kisiler.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.adSoyad} · {k.kalan === null ? "henüz hak yok" : `${k.kalan} gün kaldı`}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="baslangic">İlk gün</Label>
           <TarihInput id="baslangic" name="baslangic" value={bas} onChange={(e) => degistir(setBas)(e.target.value)} />
@@ -80,24 +81,27 @@ export function IzinFormu({ kisiler }: { kisiler: IzinKisisi[] }) {
           <Label htmlFor="bitis">Son gün</Label>
           <TarihInput id="bitis" name="bitis" value={bit} min={bas || undefined} onChange={(e) => degistir(setBit)(e.target.value)} />
         </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="yol_izni_gun">
-          Yol izni <span className="font-normal text-muted-foreground">(ücretsiz, en çok {YILLIK_IZIN.yolIzniEnFazlaGun.deger} gün)</span>
-        </Label>
-        <select
-          id="yol_izni_gun"
-          name="yol_izni_gun"
-          value={yol}
-          onChange={(e) => degistir(setYol)(e.target.value)}
-          className="h-10 w-24 border border-input bg-transparent px-2 text-sm"
-        >
-          {[0, 1, 2, 3, 4].map((n) => (
-            <option key={n} value={n}>
-              {n === 0 ? "Yok" : `${n} gün`}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="yol_izni_gun" className="whitespace-nowrap">
+            Yol izni <span className="font-normal text-muted-foreground">(ücretsiz)</span>
+          </Label>
+          <select
+            id="yol_izni_gun"
+            name="yol_izni_gun"
+            value={yol}
+            onChange={(e) => degistir(setYol)(e.target.value)}
+            className="h-10 w-full border border-input bg-transparent px-2 text-sm"
+          >
+            {[0, 1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? "Yok" : `${n} gün`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="submit" className="h-10 self-end" disabled={isPending || !kisiId || !gecerli || hesap?.gun === 0}>
+          {isPending ? "Kaydediliyor…" : "İzni kaydet"}
+        </Button>
       </div>
 
       {hesap && isbasi && (
@@ -123,14 +127,9 @@ export function IzinFormu({ kisiler }: { kisiler: IzinKisisi[] }) {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={isPending || !kisiId || !gecerli || hesap?.gun === 0}>
-          {isPending ? "Kaydediliyor…" : "İzni kaydet"}
-        </Button>
-        {kaydedildi && (
-          <span className="text-sm font-bold text-[var(--ok)]">Kaydedildi. Formu aşağıdan indirip imzalat.</span>
-        )}
-      </div>
+      {kaydedildi && (
+        <p className="text-sm font-bold text-[var(--ok)]">Kaydedildi. Formu aşağıdaki listeden indirip imzalat.</p>
+      )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );

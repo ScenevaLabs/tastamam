@@ -41,12 +41,16 @@ export function TehlikeSinifiFormu({ sinif }: { sinif: TehlikeSinifi | null }) {
       }
       className="flex flex-col gap-3"
     >
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-sm text-muted-foreground">
+      <fieldset>
+        <legend className="mb-3 text-sm text-muted-foreground">
           Sınıf SGK işyeri sicil numarasındaki NACE koduna göre belirlenir; bilmiyorsan İSG uzmanına sor.
         </legend>
+        <div className="grid gap-3 md:grid-cols-3">
         {(Object.keys(ISG) as TehlikeSinifi[]).map((s) => (
-          <label key={s} className="flex cursor-pointer items-start gap-3">
+          <label
+            key={s}
+            className="flex cursor-pointer items-start gap-3 border border-border p-3 has-[:checked]:border-foreground has-[:checked]:bg-muted/40"
+          >
             <input type="radio" name="sinif" value={s} defaultChecked={sinif === s} className="mt-1 size-4 accent-[var(--pen)]" />
             <span>
               <span className="font-bold">{TEHLIKE_SINIFI_ADI[s][0].toLocaleUpperCase("tr") + TEHLIKE_SINIFI_ADI[s].slice(1)}</span>
@@ -57,6 +61,7 @@ export function TehlikeSinifiFormu({ sinif }: { sinif: TehlikeSinifi | null }) {
             </span>
           </label>
         ))}
+        </div>
       </fieldset>
       <div>
         <Button type="submit" disabled={isPending}>
@@ -91,10 +96,10 @@ export function IsyeriBelgeFormu() {
       }
       className="flex flex-col gap-3"
     >
-      <div className="flex flex-wrap gap-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[220px_190px_minmax(0,1fr)_auto] lg:items-end">
         <div className="flex flex-col gap-2">
           <Label htmlFor="tip">Belge</Label>
-          <select id="tip" name="tip" className={SECIM} defaultValue="risk_degerlendirmesi">
+          <select id="tip" name="tip" className={`${SECIM} w-full`} defaultValue="risk_degerlendirmesi">
             {ISYERI_BELGE_TIPLERI.map((t) => (
               <option key={t} value={t}>
                 {ISYERI_BELGE_ADI[t]}
@@ -106,19 +111,17 @@ export function IsyeriBelgeFormu() {
           <Label htmlFor="yapilma_tarihi">Yapıldığı gün</Label>
           <TarihInput id="yapilma_tarihi" name="yapilma_tarihi" required />
         </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="isyeri_dosya">
-          Dosya <span className="font-normal text-muted-foreground">(isteğe bağlı)</span>
-        </Label>
-        <Input id="isyeri_dosya" type="file" onChange={(e) => setDosya(e.target.files?.[0] ?? null)} />
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={isPending}>
+        <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
+          <Label htmlFor="isyeri_dosya">
+            Dosya <span className="font-normal text-muted-foreground">(isteğe bağlı)</span>
+          </Label>
+          <Input id="isyeri_dosya" type="file" className="h-10" onChange={(e) => setDosya(e.target.files?.[0] ?? null)} />
+        </div>
+        <Button type="submit" className="h-10 self-end" disabled={isPending}>
           {isPending ? "Kaydediliyor…" : "Kaydet"}
         </Button>
-        <Mesaj error={error} ok={ok} />
       </div>
+      <Mesaj error={error} ok={ok} />
     </form>
   );
 }
@@ -332,7 +335,8 @@ export function KazaBildirildiFormu({ id, bugun }: { id: string; bugun: string }
   );
 }
 
-export function HatirlatmaFormu({ gun, alici }: { gun: number; alici: string | null }) {
+export function HatirlatmaFormu({ acik: acikBaslangic, gun, alici }: { acik: boolean; gun: number; alici: string | null }) {
+  const [acik, setAcik] = useState(acikBaslangic);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -348,20 +352,41 @@ export function HatirlatmaFormu({ gun, alici }: { gun: number; alici: string | n
       }
       className="flex flex-col gap-3"
     >
-      <p className="text-sm text-muted-foreground">
-        Her sabah 08.00&apos;de, süresi dolmasına bu kadar gün kalan işler{" "}
-        {alici ? (
-          <>
-            <span className="font-medium text-foreground">{alici}</span> adresine
-          </>
-        ) : (
-          "takip adresine (Ayarlar’da boş)"
-        )}{" "}
-        mail olarak gelir. Son günü bugün olanlar da hatırlatılır.
-      </p>
+      <label className="flex cursor-pointer items-center gap-2.5 font-medium">
+        <input
+          type="checkbox"
+          name="hatirlatma_maili"
+          checked={acik}
+          onChange={(e) => {
+            setAcik(e.target.checked);
+            setOk(null);
+          }}
+          className="size-4 accent-[var(--pen)]"
+        />
+        Her sabah mail gönder
+      </label>
+      {acik ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            08.00&apos;de, süresi dolmasına bu kadar gün kalan işler{" "}
+            {alici ? (
+              <>
+                <span className="font-medium break-all text-foreground">{alici}</span> adresine
+              </>
+            ) : (
+              "takip adresine (Ayarlar’da boş)"
+            )}{" "}
+            gelir. Son günü bugün olanlar da hatırlatılır.
+          </p>
+          <div className="flex items-center gap-3">
+            <Input name="hatirlatma_gun" type="number" min={0} max={30} defaultValue={gun} className="w-20 font-mono" />
+            <span className="text-sm">gün önce</span>
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Mail gelmez; süreler yalnızca bu sayfada görünür.</p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
-        <Input name="hatirlatma_gun" type="number" min={0} max={30} defaultValue={gun} className="w-20 font-mono" />
-        <span className="text-sm">gün önce</span>
         <Button type="submit" variant="outline" size="sm" disabled={isPending}>
           {isPending ? "Kaydediliyor…" : "Kaydet"}
         </Button>

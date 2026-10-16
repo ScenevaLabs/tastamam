@@ -21,7 +21,7 @@ export function Wordmark({ className, size = "md" }: { className?: string; size?
       </span>
       <span
         aria-hidden
-        className={lg ? "mt-1.5 h-2" : "mt-[3px] h-1"}
+        className={lg ? "mt-1.5 h-[11px]" : "mt-[3px] h-[7px]"}
         style={{
           borderTop: `${lg ? 3 : 2}px solid currentColor`,
           borderBottom: `${lg ? 3 : 2}px solid currentColor`,
