@@ -121,7 +121,10 @@ Betik dosyayı oluşturur ve eksik olanları listeler. Doldurulacaklar (açıkla
 
 - **Mail (zorunlu):** muhasebeye giden bildirimler ve sabah hatırlatmaları bu kutudan
   gider. `SMTP_HOST`, `SMTP_PORT` (genelde 465), `SMTP_USER`, `SMTP_PASS`; gelen
-  cevapları okumak için `IMAP_HOST`, `IMAP_PORT` (genelde 993).
+  cevapları okumak için `IMAP_HOST`, `IMAP_PORT` (genelde 993). Muhasebeden gelen
+  belgelerin otomatik dosyalanması için `MAIL_DOGRULAYICI`: o kutuya gelmiş bir mailin
+  kaynağındaki en üst `Authentication-Results:` satırında `;`'den önceki ad (boşsa belgeler
+  elle onaylanır).
   **[Kullanıcıya sor]** şirket mail kutusunun sunucu adresi ve şifresi. Şifreyi kullanıcı
   dosyaya kendisi yazsın.
 - **Belgeler:** `DEPO_SAGLAYICI=yerel` ve `YEREL_DEPO_KOK=` belgelerin duracağı klasörün tam

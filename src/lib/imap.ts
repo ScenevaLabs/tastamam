@@ -8,26 +8,37 @@ export type GelenPdfEki = {
   gonderenEmail: string;
   tarih: string;
   referansKodu: string | null;
-  /** Alan sunucu (Authentication-Results) göndereni doğruladı mı: DMARC geçti
-   *  ya da DKIM/SPF gönderenin alan adıyla geçti. From satırı taklit edilebildiği
-   *  için doğrulanmamış mail REF'siz otomatik dosyalanmaz. */
+  /** Gelen kutusunun sunucusu (MAIL_DOGRULAYICI) göndereni DMARC ya da
+   *  uyumlu DKIM ile doğruladı mı. From satırı taklit edilebildiği için
+   *  doğrulanmamış mail otomatik dosyalanmaz, elle onaya düşer. */
   gonderenDogrulandi: boolean;
 };
 
-/** En üstteki Authentication-Results başlığı (gelen kutusunun sunucusunun
- *  eklediği) gönderenin alan adı için geçiş gösteriyor mu. Alttaki başlıkları
- *  gönderen kendisi yazabileceği için yalnızca ilki okunur. */
-export function gondereniDogrula(sonuc: unknown, gonderenEmail: string): boolean {
-  const ilk = Array.isArray(sonuc) ? sonuc[0] : sonuc;
-  if (typeof ilk !== "string") return false;
-  const alan = gonderenEmail.split("@")[1]?.toLowerCase();
-  if (!alan) return false;
-  const metin = ilk.toLowerCase();
-  if (/\bdmarc=pass\b/.test(metin)) return true;
-  // İmzalayan alan gönderenin kendisi ya da üst alanı olmalı (tek etiketli "com" sayılmaz).
-  const alanUyar = (d: string) => d.includes(".") && (d === alan || alan.endsWith("." + d));
-  for (const m of metin.matchAll(/\bdkim=pass\b[^;]*?header\.d=([a-z0-9.-]+)/g)) if (alanUyar(m[1])) return true;
-  for (const m of metin.matchAll(/\bspf=pass\b[^;]*?smtp\.mailfrom=(?:[^@\s;]*@)?([a-z0-9.-]+)/g)) if (alanUyar(m[1])) return true;
+/** Authentication-Results başlıklarından, yalnızca bizim sunucumuzun
+ *  (authserv-id = MAIL_DOGRULAYICI) eklediği ilki okunur: gönderen kendi
+ *  başlığını ekleyebilir, sunucular kendi kimliğini taşıyan gelen başlıkları
+ *  siler (RFC 8601). Kabul: dmarc=pass ve header.from gönderenin alanı, ya da
+ *  dkim=pass ve header.d gönderenin alanı/üst alanı. SPF From'u kanıtlamaz. */
+export function gondereniDogrula(sonuc: unknown, gonderenEmail: string, sunucu: string | undefined): boolean {
+  const kimlikBeklenen = sunucu?.trim().toLowerCase();
+  const alan = gonderenEmail.split("@").at(-1)?.toLowerCase();
+  if (!kimlikBeklenen || !alan || !alan.includes(".")) return false;
+  const basliklar = (Array.isArray(sonuc) ? sonuc : [sonuc]).filter((b): b is string => typeof b === "string");
+  for (const baslik of basliklar) {
+    // Yorumları (iç içe parantez) ve tırnaklı değerleri at, sonra ";" ile böl.
+    let temiz = baslik.toLowerCase().replace(/"[^"]*"/g, " ");
+    for (let once = ""; once !== temiz; ) [once, temiz] = [temiz, temiz.replace(/\([^()]*\)/g, " ")];
+    const [kimlikKismi, ...sonuclar] = temiz.split(";").map((p) => p.trim());
+    if (kimlikKismi.split(/\s+/)[0] !== kimlikBeklenen) continue;
+    const alanUyar = (d: string | undefined) => !!d && d.includes(".") && (d === alan || alan.endsWith("." + d));
+    for (const s of sonuclar) {
+      const [yontem, ...parcalar] = s.split(/\s+/);
+      const ozellik = new Map(parcalar.map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)]));
+      if (yontem === "dmarc=pass" && ozellik.get("header.from") === alan) return true;
+      if (yontem === "dkim=pass" && alanUyar(ozellik.get("header.d"))) return true;
+    }
+    return false;
+  }
   return false;
 }
 
@@ -85,10 +96,18 @@ export async function gelenPdfEkleriniTara(
           const konu = parsed.subject ?? "(konusuz)";
           const refMatch = konu.match(/\[REF:([A-F0-9]{8})\]/i);
           const referansKodu = refMatch ? refMatch[1].toUpperCase() : null;
-          // IMAP "from" araması alt dize eşleştirir; adres birebir aynı olmalı.
-          const gonderenEmail = parsed.from?.value?.[0]?.address ?? "";
+          // IMAP "from" araması alt dize eşleştirir; tek From başlığı, tek adres
+          // ve birebir aynı adres olmalı.
+          const fromSayisi = parsed.headerLines.filter((h) => h.key === "from").length;
+          const adresler = parsed.from?.value ?? [];
+          if (fromSayisi !== 1 || adresler.length !== 1) continue;
+          const gonderenEmail = adresler[0].address ?? "";
           if (gonderenEmail.toLowerCase() !== maliMusavirEmail.trim().toLowerCase()) continue;
-          const gonderenDogrulandi = gondereniDogrula(parsed.headers.get("authentication-results"), gonderenEmail);
+          const gonderenDogrulandi = gondereniDogrula(
+            parsed.headers.get("authentication-results"),
+            gonderenEmail,
+            process.env.MAIL_DOGRULAYICI,
+          );
           const tarih = (parsed.date ?? new Date()).toISOString();
 
           for (const ek of pdfEkler) {

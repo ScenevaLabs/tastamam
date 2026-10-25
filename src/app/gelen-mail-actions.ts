@@ -397,10 +397,11 @@ export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
       }
     };
 
-    // Taklit edilmiş From ile dosya yerleştirilmesin: otomatik dosyalama ya
-    // sunucunun doğruladığı gönderene ya da bizim gönderdiğimiz REF koduna
-    // cevap veren maile yapılır; ikisi de yoksa ek elle onaya düşer.
-    const guvenilir = e.gonderenDogrulandi || refDonemIds !== null;
+    // Taklit edilmiş From ile dosya yerleştirilmesin: otomatik dosyalama
+    // yalnızca sunucunun doğruladığı gönderene yapılır. REF kodu kimlik
+    // kanıtı değil (konu satırında, tahmin/tekrar edilebilir), yalnızca
+    // adayları daraltır. Doğrulanmamış ek elle onaya düşer.
+    const guvenilir = e.gonderenDogrulandi;
     const bulunan = belgeyiCoz(metin, e.dosyaAdi, veri, refDonemIds, refTip);
     let cozum = bulunan;
     if (bulunan.tamam && !guvenilir) {
@@ -408,7 +409,9 @@ export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
       const kisiId = h.tur === "kok" ? h.kisiId : veri.donemler.find((d) => d.id === h.isGirisiId)?.kisi_id;
       cozum = {
         tamam: false,
-        neden: "Gönderen doğrulanamadı (DKIM/SPF/DMARC sonucu ve REF kodu yok); kontrol edip elle dosyalayın.",
+        neden: process.env.MAIL_DOGRULAYICI
+          ? "Gönderen doğrulanamadı (DMARC/DKIM geçmedi); kontrol edip elle dosyalayın."
+          : "Otomatik dosyalama için gönderen doğrulaması kapalı (MAIL_DOGRULAYICI tanımlı değil); kontrol edip elle dosyalayın.",
         kisiIds: kisiId ? [kisiId] : [],
         tahminTip: h.tur === "donem" ? h.belgeTipi : null,
       };
