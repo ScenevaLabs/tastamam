@@ -3,7 +3,7 @@
 // dışarı gönderilmez; yalnızca PDF/DOCX metni okunur, kimlik fotokopisi
 // gibi taranmış belgelerden okunamaz.
 //
-// Gerçek özlük dosyalarında (22 kişi) doğrulanan kural:
+// Örnek belgelerde doğrulanan kural:
 // - SGK işe giriş / işten ayrılış bildirgesi: makul yıllı en erken tarih
 //   doğum tarihidir (tarih "YYYY-AA-GG", TC tek tek kutularda). %100 tutarlı.
 // - e-Devlet nüfus kayıt örneği: belgede tek kişi (tek TC) varsa en erken

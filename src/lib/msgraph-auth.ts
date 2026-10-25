@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { tokenCoz, tokenSifrele } from "@/lib/token-sifre";
 
 // Kişisel Microsoft hesabı (consumer OneDrive) — application permissions
 // (client credentials) desteklenmiyor, bu yüzden /consumers ucu ve
@@ -50,8 +51,8 @@ async function tokenKaydet(yanit: TokenYaniti): Promise<void> {
   await supabase
     .from("ayarlar")
     .update({
-      ms_refresh_token: yanit.refresh_token,
-      ms_access_token: yanit.access_token,
+      ms_refresh_token: tokenSifrele(yanit.refresh_token, env("MS_CLIENT_SECRET")),
+      ms_access_token: tokenSifrele(yanit.access_token, env("MS_CLIENT_SECRET")),
       ms_access_token_expires_at: suresiDolacakTarih,
     })
     .eq("id", true);
@@ -88,20 +89,23 @@ export async function gecerliMsTokenAl(): Promise<string> {
     );
   }
 
+  const sir = env("MS_CLIENT_SECRET");
+  const refresh = tokenCoz(data.ms_refresh_token, sir);
   const suresiDolmakUzere =
     !data.ms_access_token_expires_at ||
     new Date(data.ms_access_token_expires_at).getTime() - Date.now() < 2 * 60 * 1000;
 
-  if (!suresiDolmakUzere && data.ms_access_token) {
-    return data.ms_access_token;
+  // Şifreleme öncesinden kalan düz metin kayıt: yenilenip şifreli yazılır.
+  if (!suresiDolmakUzere && data.ms_access_token && !refresh.eski) {
+    return tokenCoz(data.ms_access_token, sir).duz;
   }
 
   const yanit = await tokenIste(
     new URLSearchParams({
       client_id: env("MS_CLIENT_ID"),
-      client_secret: env("MS_CLIENT_SECRET"),
+      client_secret: sir,
       grant_type: "refresh_token",
-      refresh_token: data.ms_refresh_token,
+      refresh_token: refresh.duz,
       scope: SCOPE,
     }),
   );

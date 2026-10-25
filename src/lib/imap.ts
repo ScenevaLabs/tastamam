@@ -8,7 +8,28 @@ export type GelenPdfEki = {
   gonderenEmail: string;
   tarih: string;
   referansKodu: string | null;
+  /** Alan sunucu (Authentication-Results) göndereni doğruladı mı: DMARC geçti
+   *  ya da DKIM/SPF gönderenin alan adıyla geçti. From satırı taklit edilebildiği
+   *  için doğrulanmamış mail REF'siz otomatik dosyalanmaz. */
+  gonderenDogrulandi: boolean;
 };
+
+/** En üstteki Authentication-Results başlığı (gelen kutusunun sunucusunun
+ *  eklediği) gönderenin alan adı için geçiş gösteriyor mu. Alttaki başlıkları
+ *  gönderen kendisi yazabileceği için yalnızca ilki okunur. */
+export function gondereniDogrula(sonuc: unknown, gonderenEmail: string): boolean {
+  const ilk = Array.isArray(sonuc) ? sonuc[0] : sonuc;
+  if (typeof ilk !== "string") return false;
+  const alan = gonderenEmail.split("@")[1]?.toLowerCase();
+  if (!alan) return false;
+  const metin = ilk.toLowerCase();
+  if (/\bdmarc=pass\b/.test(metin)) return true;
+  // İmzalayan alan gönderenin kendisi ya da üst alanı olmalı (tek etiketli "com" sayılmaz).
+  const alanUyar = (d: string) => d.includes(".") && (d === alan || alan.endsWith("." + d));
+  for (const m of metin.matchAll(/\bdkim=pass\b[^;]*?header\.d=([a-z0-9.-]+)/g)) if (alanUyar(m[1])) return true;
+  for (const m of metin.matchAll(/\bspf=pass\b[^;]*?smtp\.mailfrom=(?:[^@\s;]*@)?([a-z0-9.-]+)/g)) if (alanUyar(m[1])) return true;
+  return false;
+}
 
 // Bulunan PDF ekleri geçici olarak burada tutulur (v1 tek Node süreci
 // üzerinde çalışıyor — Faz 8'de Graph API'ye geçilince bu yaklaşım
@@ -64,7 +85,10 @@ export async function gelenPdfEkleriniTara(
           const konu = parsed.subject ?? "(konusuz)";
           const refMatch = konu.match(/\[REF:([A-F0-9]{8})\]/i);
           const referansKodu = refMatch ? refMatch[1].toUpperCase() : null;
-          const gonderenEmail = parsed.from?.value?.[0]?.address ?? maliMusavirEmail;
+          // IMAP "from" araması alt dize eşleştirir; adres birebir aynı olmalı.
+          const gonderenEmail = parsed.from?.value?.[0]?.address ?? "";
+          if (gonderenEmail.toLowerCase() !== maliMusavirEmail.trim().toLowerCase()) continue;
+          const gonderenDogrulandi = gondereniDogrula(parsed.headers.get("authentication-results"), gonderenEmail);
           const tarih = (parsed.date ?? new Date()).toISOString();
 
           for (const ek of pdfEkler) {
@@ -77,6 +101,7 @@ export async function gelenPdfEkleriniTara(
               gonderenEmail,
               tarih,
               referansKodu,
+              gonderenDogrulandi,
             });
           }
         }

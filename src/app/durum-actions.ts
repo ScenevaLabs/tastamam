@@ -1,5 +1,6 @@
 "use server";
 
+import { yetkiliGerekli } from "@/lib/yetki";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { bugunIso } from "@/lib/isg";
@@ -30,6 +31,7 @@ function yenile(kisiId: string) {
 }
 
 export async function kisiAyrintiKaydet(fd: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const kisiId = fd.get("kisi_id") as string;
   const besKatilim = tarih(fd, "bes_katilim");
   const besCayma = tarih(fd, "bes_cayma");
@@ -51,6 +53,7 @@ export async function kisiAyrintiKaydet(fd: FormData): Promise<{ error: string |
 }
 
 export async function durumKaydet(fd: FormData): Promise<{ error: string | null; id?: string }> {
+  await yetkiliGerekli();
   const kisiId = fd.get("kisi_id") as string;
   const tur = fd.get("tur") as DurumTuru;
   const baslangic = tarih(fd, "baslangic");
@@ -71,6 +74,7 @@ export async function durumKaydet(fd: FormData): Promise<{ error: string | null;
 
 /** Kaydı kapatır: bitiş tarihi (izin bitti) ya da yazılı kabul (koşul değişikliği). */
 export async function durumGuncelle(fd: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const id = fd.get("id") as string;
   const kisiId = fd.get("kisi_id") as string;
   const alan = fd.get("alan") as string;
@@ -85,6 +89,7 @@ export async function durumGuncelle(fd: FormData): Promise<{ error: string | nul
 }
 
 export async function durumSil(fd: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const id = fd.get("id") as string;
   const kisiId = fd.get("kisi_id") as string;
   const supabase = await createClient();
@@ -95,6 +100,7 @@ export async function durumSil(fd: FormData): Promise<{ error: string | null }> 
 }
 
 export async function zimmetEkle(fd: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const kisiId = fd.get("kisi_id") as string;
   const esya = metin(fd, "esya");
   const verilis = tarih(fd, "verilis");
@@ -110,6 +116,7 @@ export async function zimmetEkle(fd: FormData): Promise<{ error: string | null }
 }
 
 export async function zimmetIade(fd: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const id = fd.get("id") as string;
   const kisiId = fd.get("kisi_id") as string;
   const iade = tarih(fd, "iade");
@@ -125,6 +132,7 @@ export async function zimmetIade(fd: FormData): Promise<{ error: string | null }
 export async function zimmetTutanagiUret(
   kisiId: string,
 ): Promise<{ error: string } | { error: null; base64: string; dosyaAdi: string }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const [{ data: kisi }, { data: esyalar }, { data: ayarlar }] = await Promise.all([
     supabase.from("kisi").select("ad_soyad, tc_kimlik_no").eq("id", kisiId).maybeSingle(),

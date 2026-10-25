@@ -1,5 +1,6 @@
 "use server";
 
+import { yetkiliGerekli } from "@/lib/yetki";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -50,6 +51,7 @@ import {
 } from "@/lib/belge-tanima";
 
 export async function kisiBelgeYoksay(formData: FormData) {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const belgeTipi = formData.get("belge_tipi") as string;
@@ -74,6 +76,7 @@ export async function kisiBelgeYoksay(formData: FormData) {
 }
 
 export async function kisiBelgeGeriAl(formData: FormData) {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const belgeTipi = formData.get("belge_tipi") as string;
@@ -91,6 +94,7 @@ export async function kisiBelgeGeriAl(formData: FormData) {
 }
 
 export async function isGirisiBelgeYoksay(formData: FormData) {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const isGirisiId = formData.get("is_girisi_id") as string;
@@ -116,6 +120,7 @@ export async function isGirisiBelgeYoksay(formData: FormData) {
 }
 
 export async function isGirisiBelgeGeriAl(formData: FormData) {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const isGirisiId = formData.get("is_girisi_id") as string;
@@ -339,6 +344,7 @@ export async function belgeYuklemeBaslat(
   istek: YuklemeIstegi,
   kaynakDosyaAdi: string,
 ): Promise<{ error: string } | ({ error: null; dosyaAdi: string } & YuklemeOturumu)> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const baglam = await yuklemeBaglami(supabase, istek);
   if (baglam.error !== null) return { error: baglam.error };
@@ -359,6 +365,7 @@ export async function belgeYuklemeTamamla(
   istek: YuklemeIstegi,
   dosyaAdi: string,
 ): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const baglam = await yuklemeBaglami(supabase, istek);
   if (baglam.error !== null) return { error: baglam.error };
@@ -429,6 +436,7 @@ export async function belgeYuklemeTamamla(
 }
 
 export async function isgBelgeYoksay(formData: FormData) {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const belgeTipi = formData.get("belge_tipi") as string;
@@ -450,6 +458,7 @@ export async function isgBelgeYoksay(formData: FormData) {
 }
 
 export async function isgBelgeGeriAl(formData: FormData) {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const belgeTipi = formData.get("belge_tipi") as string;
@@ -591,6 +600,7 @@ async function kisiTaramaBaglami(supabase: Supabase, kisiId: string) {
 export async function kisiKlasoruTara(
   kisiId: string,
 ): Promise<{ error: string } | { error: null; sonuc: KlasorTaramaSonucu }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const baglam = await kisiTaramaBaglami(supabase, kisiId);
   if (!baglam) return { error: "Kişi bulunamadı." };
@@ -799,6 +809,7 @@ export async function taramaSecimleriniUygula(
   kisiId: string,
   secimler: { yol: string; atama: string }[],
 ): Promise<{ error: string | null; hatalar: string[] }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const baglam = await kisiTaramaBaglami(supabase, kisiId);
   if (!baglam) return { error: "Kişi bulunamadı.", hatalar: [] };
@@ -852,6 +863,7 @@ export async function taramaSecimleriniUygula(
 export async function kisiKlasorunuTasiAction(
   kisiId: string,
 ): Promise<{ error: string | null; mesaj?: string }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const { data: kisi } = await supabase.from("kisi").select("ad_soyad").eq("id", kisiId).single();
   if (!kisi) return { error: "Kişi bulunamadı." };
@@ -873,6 +885,7 @@ export async function kisiKlasorunuTasiAction(
 export async function sozlesmeUret(
   formData: FormData,
 ): Promise<{ error: string } | { error: null; base64: string; dosyaAdi: string }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const kisiId = formData.get("kisi_id") as string;
   const adres = ((formData.get("adres") as string) || "").trim();
@@ -937,6 +950,7 @@ export async function sozlesmeUret(
 // durumu tutuluyor — belge durumu deseniyle birebir aynı.
 
 export async function odemeOdendiIsaretle(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const isGirisiId = formData.get("is_girisi_id") as string;
   const kisiId = formData.get("kisi_id") as string;
@@ -955,6 +969,7 @@ export async function odemeOdendiIsaretle(formData: FormData): Promise<{ error: 
 }
 
 export async function odemeGorMezdenGel(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const isGirisiId = formData.get("is_girisi_id") as string;
   const kisiId = formData.get("kisi_id") as string;
@@ -973,6 +988,7 @@ export async function odemeGorMezdenGel(formData: FormData): Promise<{ error: st
 }
 
 export async function odemeGeriAl(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const isGirisiId = formData.get("is_girisi_id") as string;
   const kisiId = formData.get("kisi_id") as string;
@@ -1004,6 +1020,7 @@ async function girisBildirgesiAlinmisMi(isGirisiId: string): Promise<boolean> {
 export async function updateIsGirisi(
   formData: FormData,
 ): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const isGirisiId = formData.get("is_girisi_id") as string;
   const kisiId = formData.get("kisi_id") as string;
@@ -1051,6 +1068,7 @@ export async function updateIsGirisi(
 export async function deleteIsGirisi(
   formData: FormData,
 ): Promise<{ error: string | null; kisiSilindi?: boolean }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const isGirisiId = formData.get("is_girisi_id") as string;
   const kisiId = formData.get("kisi_id") as string;
@@ -1088,6 +1106,7 @@ export async function deleteIsGirisi(
 export async function updateAyarlar(
   formData: FormData,
 ): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const sirketUnvani = ((formData.get("sirket_unvani") as string) || "").trim() || null;
   const sirketAdresi = ((formData.get("sirket_adresi") as string) || "").trim() || null;
@@ -1129,6 +1148,7 @@ export async function updateAyarlar(
 export async function updateProfil(
   formData: FormData,
 ): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const unvan = (formData.get("profil_unvan") as string) || null;
   const iletisim = (formData.get("profil_iletisim") as string) || null;
@@ -1231,12 +1251,14 @@ async function muhasebeMailiGonderVeKaydet(
 }
 
 export async function girisMailiGonder(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const kisiId = formData.get("kisi_id") as string;
   const isGirisiId = formData.get("is_girisi_id") as string;
   return muhasebeMailiGonderVeKaydet(isGirisiId, kisiId, "giris");
 }
 
 export async function cikisMailiGonder(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const kisiId = formData.get("kisi_id") as string;
   const isGirisiId = formData.get("is_girisi_id") as string;
   return muhasebeMailiGonderVeKaydet(isGirisiId, kisiId, "cikis");
@@ -1261,6 +1283,7 @@ export type TopluSonuc = { adSoyad: string; ok: boolean; isGirisiId?: string; ha
 export async function topluIsGirisiOlustur(
   satirlar: TopluGirisSatiri[],
 ): Promise<{ sonuclar: TopluSonuc[] }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const sonuclar: TopluSonuc[] = [];
 
@@ -1335,6 +1358,7 @@ export async function topluIsGirisiOlustur(
 export async function topluGirisMailiGonder(
   isGirisiIds: string[],
 ): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
 
   const { data: ayarlar } = await supabase.from("ayarlar").select("*").eq("id", true).single();
@@ -1395,6 +1419,7 @@ export async function topluCikisUygula(
   cikisTarihi: string,
   cikisNedeni: string | null,
 ): Promise<{ error: string | null; klasorUyarilari?: string[] }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
 
   const { data: etkilenenler } = await supabase
@@ -1448,6 +1473,7 @@ export async function topluAyrilisMailiGonder(
   isGirisiIds: string[],
   not: string | null,
 ): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
 
   const { data: ayarlar } = await supabase.from("ayarlar").select("*").eq("id", true).single();
@@ -1504,6 +1530,7 @@ export async function topluAyrilisMailiGonder(
   return { error: null };
 }
 
+// Yetkisiz oturum da çıkış yapabilmeli; bu yüzden yetkiliGerekli() yok.
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

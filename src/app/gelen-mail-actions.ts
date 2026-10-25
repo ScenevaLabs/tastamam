@@ -1,5 +1,6 @@
 "use server";
 
+import { yetkiliGerekli } from "@/lib/yetki";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { donemBelgeYaz, kokBelgeYaz } from "@/lib/ozluk-dosya";
@@ -285,6 +286,7 @@ function hedefEtiketi(hedef: Hedef): BelgeTipi {
  *  daraltır. Tek dosyada birden fazla kişinin belgesi varsa sayfa sayfa
  *  bölünür. Sadece karar verilemeyen ekler kullanıcıya sorulur. */
 export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
+  await yetkiliGerekli();
   const supabase = await createClient();
 
   const bosSonuc: GelenTaramaSonucu = {
@@ -395,7 +397,22 @@ export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
       }
     };
 
-    const cozum = belgeyiCoz(metin, e.dosyaAdi, veri, refDonemIds, refTip);
+    // Taklit edilmiş From ile dosya yerleştirilmesin: otomatik dosyalama ya
+    // sunucunun doğruladığı gönderene ya da bizim gönderdiğimiz REF koduna
+    // cevap veren maile yapılır; ikisi de yoksa ek elle onaya düşer.
+    const guvenilir = e.gonderenDogrulandi || refDonemIds !== null;
+    const bulunan = belgeyiCoz(metin, e.dosyaAdi, veri, refDonemIds, refTip);
+    let cozum = bulunan;
+    if (bulunan.tamam && !guvenilir) {
+      const h = bulunan.hedef;
+      const kisiId = h.tur === "kok" ? h.kisiId : veri.donemler.find((d) => d.id === h.isGirisiId)?.kisi_id;
+      cozum = {
+        tamam: false,
+        neden: "Gönderen doğrulanamadı (DKIM/SPF/DMARC sonucu ve REF kodu yok); kontrol edip elle dosyalayın.",
+        kisiIds: kisiId ? [kisiId] : [],
+        tahminTip: h.tur === "donem" ? h.belgeTipi : null,
+      };
+    }
     if (cozum.tamam) {
       await kaydet(cozum.hedef, buffer, e.dosyaAdi);
       ekTemizle(e.token);
@@ -405,7 +422,7 @@ export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
     // Toplu gönderim: mali müşavir N kişinin belgesini tek PDF'e sayfa sayfa
     // koyabiliyor (ör. 8 kişilik ibraname). Her sayfa ayrı çözülür; hepsi
     // net çözülürse bölünür, biri bile belirsizse tüm ek sorulur.
-    if (sayfalar.length > 1) {
+    if (guvenilir && sayfalar.length > 1) {
       const sayfaHedefleri: Hedef[] = [];
       for (const sayfa of sayfalar) {
         const c = belgeyiCoz(sayfa, e.dosyaAdi, veri, refDonemIds, refTip);
@@ -466,6 +483,7 @@ export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
 }
 
 export async function gelenEkiDosyala(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const token = formData.get("token") as string;
   const isGirisiId = formData.get("is_girisi_id") as string;
@@ -489,5 +507,6 @@ export async function gelenEkiDosyala(formData: FormData): Promise<{ error: stri
 }
 
 export async function gelenEkiYoksay(token: string): Promise<void> {
+  await yetkiliGerekli();
   ekTemizle(token);
 }

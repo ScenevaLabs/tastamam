@@ -1,5 +1,6 @@
 "use server";
 
+import { yetkiliGerekli } from "@/lib/yetki";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { bugunIso } from "@/lib/isg";
@@ -25,6 +26,7 @@ function adGecerli(ad: string): ad is SablonAdi {
 
 /** Çalışanın KVKK aydınlatma metnini ya da açık rıza beyanını doldurup indirir. */
 export async function kvkkBelgesiUret(kisiId: string, ad: "kvkk_aydinlatma" | "kvkk_acik_riza"): Promise<Indirme> {
+  await yetkiliGerekli();
   if (ad !== "kvkk_aydinlatma" && ad !== "kvkk_acik_riza") return { error: "Bilinmeyen belge." };
   const supabase = await createClient();
   const [{ data: kisi }, { data: ayarlar }] = await Promise.all([
@@ -53,6 +55,7 @@ export async function kvkkBelgesiUret(kisiId: string, ad: "kvkk_aydinlatma" | "k
 
 /** Şablonu indirir: `ornek` true ise uygulamayla gelen örnek, değilse kullanımdaki. */
 export async function sablonIndir(ad: string, ornek: boolean): Promise<Indirme> {
+  await yetkiliGerekli();
   if (!adGecerli(ad)) return { error: "Bilinmeyen şablon." };
   const supabase = await createClient();
   const icerik = ornek ? await ornekSablon(ad) : (await gecerliSablon(supabase, ad)).icerik;
@@ -62,6 +65,7 @@ export async function sablonIndir(ad: string, ornek: boolean): Promise<Indirme> 
 export async function sablonYukle(
   formData: FormData,
 ): Promise<{ error: string | null; uyari?: string }> {
+  await yetkiliGerekli();
   const ad = formData.get("ad") as string;
   const dosya = formData.get("dosya") as File | null;
   if (!adGecerli(ad)) return { error: "Bilinmeyen şablon." };
@@ -96,6 +100,7 @@ export async function sablonYukle(
 }
 
 export async function sablonSifirla(ad: string): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   if (!adGecerli(ad)) return { error: "Bilinmeyen şablon." };
   const supabase = await createClient();
   const { error } = await supabase.from("sablon").delete().eq("ad", ad);
@@ -105,6 +110,7 @@ export async function sablonSifirla(ad: string): Promise<{ error: string | null 
 }
 
 export async function acikRizaAyari(acik: boolean): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const { error } = await supabase.from("ayarlar").update({ kvkk_acik_riza: acik }).eq("id", true);
   if (error) return { error: `Kaydedilemedi: ${error.message}` };
@@ -118,6 +124,7 @@ export async function donemBelgesiUret(
   isGirisiId: string,
   ad: "fazla_calisma_onayi" | "calisma_belgesi",
 ): Promise<Indirme> {
+  await yetkiliGerekli();
   if (ad !== "fazla_calisma_onayi" && ad !== "calisma_belgesi") return { error: "Bilinmeyen belge." };
   const supabase = await createClient();
   const [{ data: d }, { data: ayarlar }] = await Promise.all([
@@ -160,6 +167,7 @@ export async function donemBelgesiUret(
 /** İşçinin fazla çalışma onayını geri aldığı gün (boşsa geri alma kaldırılır).
  *  Bu günden 30 gün sonra fazla çalışma yaptırılamaz (Yön. md. 9). */
 export async function fazlaCalismaGeriAl(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const id = formData.get("is_girisi_id") as string;
   const kisiId = formData.get("kisi_id") as string;
   const tarih = (formData.get("tarih") as string) || null;

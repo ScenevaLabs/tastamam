@@ -1,5 +1,6 @@
 "use server";
 
+import { yetkiliGerekli } from "@/lib/yetki";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { ISYERI_BELGE_ADI, ISYERI_BELGE_TIPLERI, kazaSonGun } from "@/lib/isg-takip";
@@ -25,6 +26,7 @@ function tarih(formData: FormData, ad: string): string | null {
 }
 
 export async function tehlikeSinifiKaydet(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const sinif = formData.get("sinif") as string;
   if (!["az", "tehlikeli", "cok"].includes(sinif)) return { error: "Tehlike sınıfını seç." };
   const supabase = await createClient();
@@ -38,6 +40,7 @@ export async function tehlikeSinifiKaydet(formData: FormData): Promise<{ error: 
 /** Yeni işyeri belgesi kaydı (yapıldığı gün); dosya ayrıca yüklenir. Dönen
  *  id ile tarayıcı dosyayı yükler (lib/belge-yukle.ts, tur "isyeri"). */
 export async function isyeriBelgeKaydet(formData: FormData): Promise<{ error: string | null; id?: string }> {
+  await yetkiliGerekli();
   const tip = formData.get("tip") as IsyeriBelgeTipi;
   const yapilma = tarih(formData, "yapilma_tarihi");
   if (!ISYERI_BELGE_TIPLERI.includes(tip)) return { error: "Belge tipini seç." };
@@ -55,6 +58,7 @@ export async function isyeriBelgeKaydet(formData: FormData): Promise<{ error: st
 }
 
 export async function kazaKaydet(formData: FormData): Promise<{ error: string | null; id?: string }> {
+  await yetkiliGerekli();
   const id = metin(formData, "id");
   const kisiId = metin(formData, "kisi_id");
   const tur = formData.get("tur") as KazaTuru;
@@ -107,6 +111,7 @@ export async function kazaKaydet(formData: FormData): Promise<{ error: string | 
 }
 
 export async function kazaBildirildi(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const id = metin(formData, "id");
   const gun = tarih(formData, "bildirildi_tarihi");
   if (!id) return { error: "Kayıt bulunamadı." };
@@ -123,6 +128,7 @@ export async function kazaBildirildi(formData: FormData): Promise<{ error: strin
 /** İSG uzmanına (ayarlardaki İSG e-postası) olayın özetini gönderir;
  *  işyeri hekimine iletmesi istenir. */
 export async function kazaHaberVer(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const id = metin(formData, "id");
   if (!id) return { error: "Kayıt bulunamadı." };
   const supabase = await createClient();
@@ -169,6 +175,7 @@ export async function kazaHaberVer(formData: FormData): Promise<{ error: string 
 }
 
 export async function hatirlatmaGunuKaydet(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const acik = formData.get("hatirlatma_maili") === "on";
   const gun = Number(formData.get("hatirlatma_gun") ?? 3);
   if (acik && (!Number.isInteger(gun) || gun < 0 || gun > 30)) return { error: "0 ile 30 arasında bir gün sayısı gir." };

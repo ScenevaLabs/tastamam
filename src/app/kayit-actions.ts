@@ -1,5 +1,6 @@
 "use server";
 
+import { yetkiliGerekli } from "@/lib/yetki";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -101,6 +102,7 @@ export async function puantajGunKaydet(params: {
   giris?: string | null;
   cikis?: string | null;
 }): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const giris = params.giris || "";
   const cikis = params.cikis || "";
   const r = await puantajTopluKaydet({
@@ -128,6 +130,7 @@ export async function puantajTopluKaydet(params: {
   /** Saat yazılmıyorsa elle fazla çalışma; verilmezse "koru"da mevcut kalır, "temizle"de 0. */
   fazlaSaat?: number;
 }): Promise<{ error: string | null; atlanan: TopluAtlanan[] }> {
+  await yetkiliGerekli();
   const hucreler = [...new Map(params.hucreler.map((h) => [`${h.kisiId}:${h.tarih}`, h])).values()].slice(0, 2000);
   if (hucreler.length === 0) return { error: null, atlanan: [] };
   if (hucreler.some((h) => !TARIH_RE.test(h.tarih))) return { error: "Tarih geçersiz.", atlanan: [] };
@@ -249,6 +252,7 @@ export async function puantajTopluKaydet(params: {
  *  gönderilebilir. Ay zaten kapalıysa (tekrar gönderim) dondurulan hal
  *  değişmez, yalnızca mail yeniden denenir. */
 export async function puantajAyKapat(ay: string): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   if (!AY_RE.test(ay)) return { error: "Ay geçersiz." };
   const supabase = await createClient();
   const { data: ayarlar } = await supabase
@@ -307,6 +311,7 @@ export async function puantajAyKapat(ay: string): Promise<{ error: string | null
 }
 
 export async function puantajAyAc(ay: string): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   if (!AY_RE.test(ay)) return { error: "Ay geçersiz." };
   const supabase = await createClient();
   // gonderildi_at kalır: sayfa "önceki gönderim" olarak gösterir.
@@ -319,6 +324,7 @@ export async function puantajAyAc(ay: string): Promise<{ error: string | null }>
 // ── Yıllık izin ─────────────────────────────────────────────────────
 
 export async function izinKaydet(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const kisiId = (formData.get("kisi_id") as string) || "";
   const baslangic = (formData.get("baslangic") as string) || "";
   const bitis = (formData.get("bitis") as string) || "";
@@ -368,6 +374,7 @@ export async function izinKaydet(formData: FormData): Promise<{ error: string | 
 }
 
 export async function izinSil(id: string): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const { data: izin } = await supabase
     .from("yillik_izin")
@@ -392,6 +399,7 @@ export async function izinSil(id: string): Promise<{ error: string | null }> {
 /** Çıkışta ödenen izin ücretini işaretler. Gün, ödendiği anki bakiyeyle
  *  saklanır; sonradan izin kaydı değişse de ödenen gün sabit kalır. */
 export async function izinUcretiOdendi(isGirisiId: string, gun: number): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   if (!Number.isInteger(gun) || gun < 0) return { error: "Gün geçersiz." };
   const supabase = await createClient();
   const { error } = await supabase
@@ -405,6 +413,7 @@ export async function izinUcretiOdendi(isGirisiId: string, gun: number): Promise
 }
 
 export async function izinUcretiGeriAl(isGirisiId: string): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const { error } = await supabase
     .from("is_girisi")
@@ -418,6 +427,7 @@ export async function izinUcretiGeriAl(isGirisiId: string): Promise<{ error: str
 // ── Kişi ve ayarlar ─────────────────────────────────────────────────
 
 export async function dogumTarihiKaydet(kisiId: string, tarih: string): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   if (tarih && !TARIH_RE.test(tarih)) return { error: "Tarih geçersiz." };
   const supabase = await createClient();
   const { error } = await supabase.from("kisi").update({ dogum_tarihi: tarih || null }).eq("id", kisiId);
@@ -434,6 +444,7 @@ export async function dogumTarihiKaydet(kisiId: string, tarih: string): Promise<
 export async function dogumTarihiBelgedenBul(
   kisiId: string,
 ): Promise<{ error: string | null; tarih: string | null; kaynak?: string }> {
+  await yetkiliGerekli();
   const supabase = await createClient();
   const { data: kisi } = await supabase
     .from("kisi")
@@ -480,6 +491,7 @@ export async function dogumTarihiBelgedenBul(
 }
 
 export async function modulleriKaydet(formData: FormData): Promise<{ error: string | null }> {
+  await yetkiliGerekli();
   const acik = MODULLER.filter((m) => formData.get(`modul_${m}`) === "on") as Modul[];
   // Alan yalnızca 0025 uygulanmışsa formda var.
   const baslangic = formData.get("puantaj_baslangic");
