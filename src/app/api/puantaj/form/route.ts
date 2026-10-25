@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { bugunIso } from "@/lib/isg";
 import { ayinGunleri } from "@/lib/puantaj";
 import { puantajFormuDocx } from "@/lib/puantaj-formu-docx";
 import { AY_RE, ayAdi, puantajYukle } from "@/lib/puantaj-veri";
+import { gunEkle } from "@/lib/mevzuat";
 import { tarihSlash } from "@/lib/utils";
 
 const UUID_RE = /^[0-9a-f-]{36}$/i;
@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
     meslek: donem?.meslek_adi ?? kisi.meslek_adi ?? "",
     ayAdi: ayAdi(ay),
     satir,
-    duzenlemeTarihi: tarihSlash(bugunIso()),
+    // Çizelge ay bitince düzenlenir: ayın son gününden bir sonraki gün (20 Ekim 2026).
+    duzenlemeTarihi: tarihSlash(gunEkle(ayinGunleri(ay).at(-1)!, 1)),
   });
 
   const ad = `puantaj-${ay}-${kisi.ad_soyad}.docx`;

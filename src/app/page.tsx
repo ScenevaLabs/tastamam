@@ -1,198 +1,376 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/app-header";
-import { CalisanListesi } from "@/components/calisan-listesi";
-import {
-  ZORUNLU_KOK_BELGE_TIPLERI,
-  DONEM_BELGE_TIPLERI,
-  SABIT_DONEM_BELGE_TIPLERI,
-  type Kisi,
-  type IsGirisi,
-  type IsgBelge,
-} from "@/lib/types";
-import { bugunIso, isgOzeti } from "@/lib/isg";
-import { donemPuantajlari, puantajBelgeVerisiYukle } from "@/lib/puantaj-belge";
-import { fazlaCalismaVar, kosulluBelgeler, pusulaAylari, takipBaslangici } from "@/lib/donem-belge";
+import { TakvimSatiri } from "@/components/takvim-satiri";
+import { DogumTarihiBul } from "@/components/dogum-tarihi-bul";
+import { calisanOzetleriYukle } from "@/lib/calisan-ozet";
 import { ayarlarSatiri } from "@/lib/istek";
-import { IS_ILISKISI, engelliKontenjani } from "@/lib/mevzuat";
+import { acikModuller } from "@/lib/moduller";
+import { bugunIso } from "@/lib/isg";
+import { gunEkle, gunFarki, tamYil } from "@/lib/mevzuat";
+import { takvimOgeleri } from "@/lib/takvim";
+import { takvimVerisiYukle } from "@/lib/takvim-veri";
+import { ayAdi, ayKaydir } from "@/lib/puantaj-veri";
+import { donemOdenecekTutar, formatTarih } from "@/lib/utils";
+import { ISG_BELGE_ETIKETLERI, type IsgBelgeTipi } from "@/lib/types";
 
-type Row = {
-  kisi: Kisi;
-  donemler: IsGirisi[];
-  aktif: boolean;
-  guncelDonem: IsGirisi;
-  eksikToplam: number;
-  hicKontrolEdilmedi: boolean;
-};
+// Ana sayfa (20 Ekim 2026): genel durum, yaklaşan süreler,
+// doğum günleri, son hareketler. Çalışan listesi /calisanlar'a taşındı.
 
-export default async function Home() {
+const YAKLASAN_GUN = 14;
+const DOGUM_GUNU_GUN = 30;
+
+const UZUN_GUN = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", weekday: "long", timeZone: "UTC" });
+const GUN_AY = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", timeZone: "UTC" });
+const SAAT = new Intl.DateTimeFormat("tr-TR", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Istanbul",
+});
+const TL = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 });
+
+/** Bugünden sonraki (ya da bugünkü) ilk doğum günü; 29 Şubat artık olmayan yılda 1 Mart. */
+function siradakiDogumGunu(dogum: string, bugun: string): string {
+  const ayGun = dogum.slice(5);
+  for (const yil of [Number(bugun.slice(0, 4)), Number(bugun.slice(0, 4)) + 1]) {
+    let t = `${yil}-${ayGun}`;
+    if (ayGun === "02-29" && new Date(`${t}T00:00:00Z`).getUTCMonth() !== 1) t = `${yil}-03-01`;
+    if (t >= bugun) return t;
+  }
+  return `${Number(bugun.slice(0, 4)) + 1}-${ayGun}`;
+}
+
+type Hareket = { zaman: string; metin: string; href: string; uyari?: boolean };
+
+export default async function AnaSayfa() {
   const supabase = await createClient();
-
-  // Sorgular birbirinden bağımsız: paralel (her biri ~100 ms Atlantik
-  // gidiş-dönüşü, bkz. lib/istek.ts).
-  // Sadece listede olan tipler sayılır — listeden çıkarılmış tiplerin
-  // (referans mektubu, dönem bazlı eski İSG satırları) DB'de kalan
-  // satırları sayımı bozmasın.
-  const [
-    { data: kisiler, error },
-    { data: isGirisleri },
-    { data: kisiBelgeAll },
-    { data: donemBelgeAll },
-    { data: isgBelgeAll },
-    puantajVeri,
-    ayarlar,
-    { data: pusulaAll },
-  ] = await Promise.all([
-    supabase.from("kisi").select("*").returns<Kisi[]>(),
-    supabase.from("is_girisi").select("*").order("giris_tarihi", { ascending: false }).returns<IsGirisi[]>(),
-    supabase.from("kisi_belge").select("kisi_id, durum").in("belge_tipi", [...ZORUNLU_KOK_BELGE_TIPLERI]),
-    supabase.from("is_girisi_belge").select("is_girisi_id, belge_tipi, durum").in("belge_tipi", [...DONEM_BELGE_TIPLERI]),
-    supabase.from("isg_belge").select("*").returns<IsgBelge[]>(),
-    // Puantaj satırları da dönem eksiği sayılır (14 Ekim 2026).
-    puantajBelgeVerisiYukle(supabase, bugunIso()),
-    ayarlarSatiri(),
-    // Ücret pusulaları (0029; tablo yoksa boş döner).
-    supabase.from("ucret_pusulasi").select("kisi_id, ay"),
-  ]);
   const bugun = bugunIso();
-  const takipBaslangic = takipBaslangici(ayarlar, bugun);
-  const pusulaVar = new Set((pusulaAll ?? []).map((p) => `${p.kisi_id}:${String(p.ay).slice(0, 7)}`));
-  const isgByKisi = new Map<string, IsgBelge[]>();
-  for (const b of isgBelgeAll ?? []) {
-    if (!isgByKisi.has(b.kisi_id)) isgByKisi.set(b.kisi_id, []);
-    isgByKisi.get(b.kisi_id)!.push(b);
-  }
+  const buAy = bugun.slice(0, 7);
+  const gecenAy = ayKaydir(buAy, -1);
 
-  const donemlerByKisi = new Map<string, IsGirisi[]>();
-  for (const g of isGirisleri ?? []) {
-    if (!donemlerByKisi.has(g.kisi_id)) donemlerByKisi.set(g.kisi_id, []);
-    donemlerByKisi.get(g.kisi_id)!.push(g);
-  }
+  const [ozet, ayarlar, moduller, { data: aylar }, { data: odemeler }, mailler, girisler, isgler, imzalar, izinler] =
+    await Promise.all([
+      calisanOzetleriYukle(supabase),
+      ayarlarSatiri(),
+      acikModuller(),
+      supabase.from("puantaj_ay").select("ay, kapandi_at, gonderildi_at").in("ay", [`${gecenAy}-01`, `${buAy}-01`]),
+      supabase
+        .from("is_girisi")
+        .select("giris_tarihi, cikis_tarihi, ucret_tutari, ucret_periyodu")
+        .eq("odeme_durumu", "yok"),
+      supabase
+        .from("mail_gonderim_kaydi")
+        .select("created_at, tip, durum, is_girisi(kisi_id, kisi(ad_soyad))")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("is_girisi")
+        .select("created_at, giris_tarihi, kisi_id, kisi(ad_soyad)")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("isg_belge")
+        .select("created_at, belge_tipi, kisi_id, kisi(ad_soyad)")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("puantaj_imza")
+        .select("yuklendi_at, ay, kisi_id, kisi(ad_soyad)")
+        .order("yuklendi_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("yillik_izin")
+        .select("created_at, gun, kisi_id, kisi(ad_soyad)")
+        .order("created_at", { ascending: false })
+        .limit(8),
+    ]);
+  const girdi = await takvimVerisiYukle(supabase, bugun, ayarlar);
 
-  const kokStats = new Map<string, { var: number; yoksay: number; toplam: number }>();
-  for (const b of kisiBelgeAll ?? []) {
-    const s = kokStats.get(b.kisi_id) ?? { var: 0, yoksay: 0, toplam: 0 };
-    s.toplam++;
-    if (b.durum === "var") s.var++;
-    if (b.durum === "yoksayildi") s.yoksay++;
-    kokStats.set(b.kisi_id, s);
-  }
+  const { aktifRows, pasifRows } = ozet;
+  const tumRows = [...aktifRows, ...pasifRows];
+  const eksikToplam = tumRows.reduce((t, r) => t + r.eksikToplam, 0);
+  const eksikliler = tumRows
+    .filter((r) => r.eksikToplam > 0)
+    .sort((a, b) => b.eksikToplam - a.eksikToplam)
+    .slice(0, 5);
 
-  // Dönem → belge tipi → durum (koşullu belgeler dönemine göre sayılır).
-  const donemDurum = new Map<string, Map<string, string>>();
-  for (const b of donemBelgeAll ?? []) {
-    if (!donemDurum.has(b.is_girisi_id)) donemDurum.set(b.is_girisi_id, new Map());
-    donemDurum.get(b.is_girisi_id)!.set(b.belge_tipi, b.durum);
-  }
+  const asgari = (ayarlar?.asgari_ucret_aylik as number | undefined) ?? 28075.5;
+  const odenmemis = odemeler ?? [];
+  const odenmemisTutar = odenmemis.reduce(
+    (t, d) => t + donemOdenecekTutar(d.giris_tarihi, d.cikis_tarihi, d.ucret_tutari, asgari, d.ucret_periyodu),
+    0,
+  );
 
+  const puantajAcik = moduller.includes("puantaj");
+  const ayKaydi = (ay: string) => (aylar ?? []).find((a) => String(a.ay).startsWith(ay));
+  const gecenKapandi = !!ayKaydi(gecenAy)?.kapandi_at;
 
-  const rows: Row[] = (kisiler ?? [])
-    .map((kisi) => {
-      const donemler = donemlerByKisi.get(kisi.id) ?? [];
-      if (donemler.length === 0) return null;
+  const yaklasan = takvimOgeleri(girdi)
+    .filter((o) => o.tarih <= gunEkle(bugun, YAKLASAN_GUN))
+    .sort((a, b) => a.tarih.localeCompare(b.tarih));
 
-      const aktifDonem = donemler.find((d) => d.durum === "aktif");
-      const guncelDonem = aktifDonem ?? donemler[0];
-
-      const kok = kokStats.get(kisi.id);
-      const kokEksik =
-        ZORUNLU_KOK_BELGE_TIPLERI.length -
-        (kok?.var ?? 0) -
-        (kok?.yoksay ?? 0) +
-        isgOzeti(isgByKisi.get(kisi.id) ?? []).eksikSayisi;
-
-      let donemEksikToplam = 0;
-      let herhangiDonemKontrolEdildi = false;
-      for (const d of donemler) {
-        const durumlar = donemDurum.get(d.id);
-        if (durumlar) herhangiDonemKontrolEdildi = true;
-        const sayilan = [
-          ...SABIT_DONEM_BELGE_TIPLERI,
-          ...kosulluBelgeler(d, {
-            fazlaCalisma: fazlaCalismaVar(puantajVeri.elle, kisi.id, d, takipBaslangic),
-            baslangic: takipBaslangic,
-          }),
-        ];
-        const eksik = sayilan.filter((t) => !durumlar?.has(t) || durumlar.get(t) === "yok").length;
-        const pusulaEksik = pusulaAylari(d, takipBaslangic, bugun).filter((a) => !pusulaVar.has(`${kisi.id}:${a}`)).length;
-        // Ödeme de "eksik" sayısına dahil — belge gibi tek bir kalem (Faz 11 revize).
-        const odemeEksik = d.odeme_durumu === "yok" ? 1 : 0;
-        const puantajEksik = donemPuantajlari({
-          veri: puantajVeri,
-          kisiId: kisi.id,
-          adSoyad: kisi.ad_soyad,
-          donem: d,
-          tumDonemler: donemler,
-        }).filter((p) => p.eksik).length;
-        donemEksikToplam += eksik + odemeEksik + puantajEksik + pusulaEksik;
-      }
-
-      const hicKontrolEdilmedi = !kok && !herhangiDonemKontrolEdildi;
-
-      return {
-        kisi,
-        donemler,
-        aktif: !!aktifDonem,
-        guncelDonem,
-        eksikToplam: kokEksik + donemEksikToplam,
-        hicKontrolEdilmedi,
-      };
+  const dogumGunleri = aktifRows
+    .filter((r) => r.kisi.dogum_tarihi)
+    .map((r) => {
+      const gun = siradakiDogumGunu(r.kisi.dogum_tarihi!, bugun);
+      return { kisi: r.kisi, gun, yas: tamYil(r.kisi.dogum_tarihi!, gun) };
     })
-    .filter((r): r is Row => r !== null);
+    .filter((d) => gunFarki(bugun, d.gun) <= DOGUM_GUNU_GUN)
+    .sort((a, b) => a.gun.localeCompare(b.gun));
+  const dogumsuz = tumRows.filter((r) => !r.kisi.dogum_tarihi).map((r) => r.kisi.id);
 
-  const aktifRows = rows
-    .filter((r) => r.aktif)
-    .sort((a, b) => b.guncelDonem.giris_tarihi.localeCompare(a.guncelDonem.giris_tarihi));
-  const pasifRows = rows
-    .filter((r) => !r.aktif)
-    .sort((a, b) => b.guncelDonem.giris_tarihi.localeCompare(a.guncelDonem.giris_tarihi));
+  type Ad = { kisi: { ad_soyad: string } | null };
+  const ad = (x: Ad) => x.kisi?.ad_soyad ?? "?";
+  const hareketler: Hareket[] = [
+    ...((mailler.data ?? []) as unknown as {
+      created_at: string;
+      tip: string;
+      durum: string;
+      is_girisi: { kisi_id: string; kisi: { ad_soyad: string } | null } | null;
+    }[]).map((m) => ({
+      zaman: m.created_at,
+      metin:
+        m.durum === "basarili"
+          ? `${m.is_girisi?.kisi?.ad_soyad ?? "?"} için muhasebeye ${m.tip === "giris" ? "giriş" : "çıkış"} maili gitti`
+          : `${m.is_girisi?.kisi?.ad_soyad ?? "?"} için ${m.tip === "giris" ? "giriş" : "çıkış"} maili gönderilemedi`,
+      href: `/kisi/${m.is_girisi?.kisi_id ?? ""}`,
+      uyari: m.durum !== "basarili",
+    })),
+    ...((girisler.data ?? []) as unknown as (Ad & { created_at: string; giris_tarihi: string; kisi_id: string })[]).map(
+      (g) => ({
+        zaman: g.created_at,
+        metin: `${ad(g)} için iş dönemi açıldı, giriş ${formatTarih(g.giris_tarihi)}`,
+        href: `/kisi/${g.kisi_id}`,
+      }),
+    ),
+    ...((isgler.data ?? []) as unknown as (Ad & { created_at: string; belge_tipi: IsgBelgeTipi; kisi_id: string })[]).map(
+      (b) => ({
+        zaman: b.created_at,
+        metin: `${ad(b)}: ${ISG_BELGE_ETIKETLERI[b.belge_tipi] ?? "İSG belgesi"} eklendi`,
+        href: `/kisi/${b.kisi_id}`,
+      }),
+    ),
+    ...((imzalar.data ?? []) as unknown as (Ad & { yuklendi_at: string; ay: string; kisi_id: string })[]).map((p) => ({
+      zaman: p.yuklendi_at,
+      metin: `${ad(p)}: ${ayAdi(String(p.ay).slice(0, 7))} imzalı puantajı yüklendi`,
+      href: `/puantaj?ay=${String(p.ay).slice(0, 7)}`,
+    })),
+    ...((izinler.data ?? []) as unknown as (Ad & { created_at: string; gun: number; kisi_id: string })[]).map((i) => ({
+      zaman: i.created_at,
+      metin: `${ad(i)} için ${i.gun} gün yıllık izin girildi`,
+      href: "/izin",
+    })),
+  ]
+    .filter((h) => h.zaman)
+    .sort((a, b) => b.zaman.localeCompare(a.zaman))
+    .slice(0, 8);
 
-  // Engelli istihdamı: 50 ve üzeri işçide %3 (4857 md. 30). Aynı ildeki
-  // işyerleri toplanır; uygulama tek işyeri varsayar.
-  const engelliGereken = aktifRows.length >= IS_ILISKISI.engelliEsik.deger ? engelliKontenjani(aktifRows.length) : 0;
-  const engelliSayisi = aktifRows.filter((r) => r.kisi.engelli).length;
+  const gecikmis = yaklasan.filter((o) => o.tarih < bugun).length;
+  const ozetCumlesi = [
+    eksikToplam ? `Dosyalarda ${eksikToplam} eksik var` : "Dosyalarda eksik yok",
+    yaklasan.length
+      ? `önümüzdeki iki haftada ${yaklasan.length - gecikmis} süre doluyor${gecikmis ? `, ${gecikmis} süre geçti` : ""}`
+      : "önümüzdeki iki haftada dolan süre yok",
+  ].join(", ");
 
   return (
     <>
-      <AppHeader aktif="calisanlar" />
-      <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6 p-4 sm:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-[30px] font-extrabold tracking-[-0.02em] sm:text-[34px]">Çalışanlar</h1>
-            <p className="text-muted-foreground">
-              {aktifRows.length} aktif, {pasifRows.length} pasif.
-            </p>
-            {engelliGereken > engelliSayisi && (
-              <p className="text-sm font-bold text-[var(--warn)]">
-                {aktifRows.length} çalışanla en az {engelliGereken} engelli çalışan istihdam etmen gerekiyor; şu an{" "}
-                {engelliSayisi}. <span className="font-mono text-[12px] font-normal">{IS_ILISKISI.engelliOrani.dayanak}</span>
-              </p>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              nativeButton={false}
-              variant="outline"
-              size="lg"
-              className="border-primary px-4 font-bold text-primary"
-              render={<Link href="/is-cikisi">İş çıkışı</Link>}
-            />
-            <Button
-              nativeButton={false}
-              size="lg"
-              className="px-4 font-bold"
-              render={<Link href="/is-girisi">İş girişi</Link>}
-            />
-          </div>
+      <AppHeader />
+      <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-8 p-4 sm:p-8">
+        <div>
+          <h1 className="text-[30px] font-extrabold tracking-[-0.02em] first-letter:uppercase sm:text-[34px]">
+            {UZUN_GUN.format(new Date(`${bugun}T00:00:00Z`))}
+          </h1>
+          <p className="mt-1 text-muted-foreground">{ozetCumlesi}.</p>
         </div>
 
-        {error ? (
-          <p className="text-sm text-destructive">Kayıtlar yüklenemedi: {error.message}</p>
-        ) : (
-          <CalisanListesi aktifRows={aktifRows} pasifRows={pasifRows} />
-        )}
+        <section aria-label="Genel durum" className="grid grid-cols-2 border border-border bg-card lg:grid-cols-4">
+          <Rakam
+            href="/calisanlar"
+            deger={String(aktifRows.length)}
+            etiket="aktif çalışan"
+            alt={`${pasifRows.length} pasif`}
+          />
+          <Rakam
+            href="/calisanlar"
+            deger={eksikToplam ? String(eksikToplam) : "Tastamam"}
+            etiket={eksikToplam ? "eksik evrak ve kayıt" : "tüm dosyalar tam"}
+            alt={eksikToplam ? `${tumRows.filter((r) => r.eksikToplam > 0).length} kişide` : undefined}
+            renk={eksikToplam ? "warn" : "stamp"}
+          />
+          {puantajAcik ? (
+            <Rakam
+              href={`/puantaj?ay=${gecenKapandi ? buAy : gecenAy}`}
+              deger={gecenKapandi ? "Açık" : "Kapanmadı"}
+              etiket={gecenKapandi ? `${ayAdi(buAy)} puantajı` : `${ayAdi(gecenAy)} puantajı`}
+              alt={
+                gecenKapandi
+                  ? ayKaydi(gecenAy)?.gonderildi_at
+                    ? `${ayAdi(gecenAy)} muhasebeye gitti`
+                    : `${ayAdi(gecenAy)} kapandı, mail gitmedi`
+                  : "kapatıp muhasebeye gönder"
+              }
+              renk={gecenKapandi ? undefined : "warn"}
+            />
+          ) : (
+            <Rakam href="/izin" deger="—" etiket="puantaj kapalı" alt="Ayarlar'dan açılır" />
+          )}
+          <Rakam
+            href="/odemeler"
+            deger={String(odenmemis.length)}
+            etiket="ödenmemiş iş dönemi"
+            alt={odenmemis.length ? `${TL.format(odenmemisTutar)} TL` : "hepsi ödendi"}
+            renk={odenmemis.length ? "warn" : undefined}
+          />
+        </section>
+
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex min-w-0 flex-col gap-8">
+            <section>
+              <div className="mb-2 flex items-baseline justify-between gap-4">
+                <h2 className="text-[18px] font-bold">Yaklaşan süreler</h2>
+                {moduller.includes("takvim") && (
+                  <Link href="/takvim" className="text-sm text-primary hover:underline">
+                    Takvim
+                  </Link>
+                )}
+              </div>
+              {yaklasan.length === 0 ? (
+                <p className="border border-border bg-card px-4 py-6">
+                  Önümüzdeki iki haftada dolan bir süre yok. Her şey tastamam.
+                </p>
+              ) : (
+                <div className="border border-border bg-card">
+                  {yaklasan.map((o) => (
+                    <TakvimSatiri key={`${o.tarih}${o.metin}`} o={o} bugun={bugun} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {eksikliler.length > 0 && (
+              <section>
+                <div className="mb-2 flex items-baseline justify-between gap-4">
+                  <h2 className="text-[18px] font-bold">En çok eksiği olan dosyalar</h2>
+                  <Link href="/calisanlar" className="text-sm text-primary hover:underline">
+                    Tüm çalışanlar
+                  </Link>
+                </div>
+                <div className="border border-border bg-card">
+                  {eksikliler.map((r) => (
+                    <Link
+                      key={r.kisi.id}
+                      href={`/kisi/${r.kisi.id}`}
+                      className="flex items-baseline justify-between gap-4 border-b border-border/60 px-4 py-3 last:border-b-0 hover:bg-muted/40"
+                    >
+                      <span className="min-w-0 truncate font-medium">
+                        {r.kisi.ad_soyad}
+                        <span className="ml-2 text-[13px] font-normal text-muted-foreground">
+                          {r.aktif ? "aktif" : "pasif"}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[13px] font-bold text-[var(--warn)]">{r.eksikToplam} eksik</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <aside className="flex min-w-0 flex-col gap-8">
+            <section>
+              <h2 className="mb-2 text-[18px] font-bold">Doğum günleri</h2>
+              <div className="border border-border bg-card">
+                {dogumGunleri.length === 0 ? (
+                  <p className="px-4 py-4 text-sm text-muted-foreground">Önümüzdeki 30 günde doğum günü yok.</p>
+                ) : (
+                  dogumGunleri.map((d) => {
+                    const f = gunFarki(bugun, d.gun);
+                    return (
+                      <Link
+                        key={d.kisi.id}
+                        href={`/kisi/${d.kisi.id}`}
+                        className="flex items-baseline justify-between gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 hover:bg-muted/40"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{d.kisi.ad_soyad}</span>
+                          <span className="text-[13px] text-muted-foreground">{d.yas} yaşına giriyor</span>
+                        </span>
+                        <span
+                          className={`shrink-0 text-right font-mono text-[13px] ${f === 0 ? "font-bold text-[var(--pen)]" : ""}`}
+                        >
+                          {f === 0 ? "bugün" : f === 1 ? "yarın" : GUN_AY.format(new Date(`${d.gun}T00:00:00Z`))}
+                        </span>
+                      </Link>
+                    );
+                  })
+                )}
+                {dogumsuz.length > 0 && (
+                  <div className="border-t border-border px-4 py-3">
+                    <DogumTarihiBul kisiIdler={dogumsuz} />
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="mb-2 text-[18px] font-bold">Son hareketler</h2>
+              <div className="border border-border bg-card">
+                {hareketler.length === 0 ? (
+                  <p className="px-4 py-4 text-sm text-muted-foreground">Henüz bir hareket yok.</p>
+                ) : (
+                  hareketler.map((h, i) => (
+                    <Link
+                      key={`${h.zaman}${i}`}
+                      href={h.href}
+                      className="block border-b border-border/60 px-4 py-2.5 last:border-b-0 hover:bg-muted/40"
+                    >
+                      <span className="block font-mono text-[12px] text-muted-foreground">
+                        {SAAT.format(new Date(h.zaman))}
+                      </span>
+                      <span className={`text-[14px] ${h.uyari ? "font-medium text-[var(--warn)]" : ""}`}>{h.metin}</span>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </section>
+          </aside>
+        </div>
       </div>
     </>
+  );
+}
+
+/** Genel durum şeridinin bir hücresi: büyük rakam, altında ne olduğu. */
+function Rakam({
+  href,
+  deger,
+  etiket,
+  alt,
+  renk,
+}: {
+  href: string;
+  deger: string;
+  etiket: string;
+  alt?: string;
+  renk?: "warn" | "stamp";
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex min-w-0 flex-col gap-0.5 border-border px-4 py-4 hover:bg-muted/40 max-lg:[&:nth-child(-n+2)]:border-b [&:not(:last-child)]:border-r max-lg:[&:nth-child(2)]:border-r-0 sm:px-5"
+    >
+      <span
+        className={`font-mono text-[26px] font-medium leading-tight tracking-[-0.02em] sm:text-[30px] ${
+          renk === "warn" ? "text-[var(--warn)]" : renk === "stamp" ? "text-[var(--stamp)]" : ""
+        }`}
+      >
+        {deger}
+      </span>
+      <span className="text-[14px] font-medium">{etiket}</span>
+      {alt && <span className="truncate text-[13px] text-muted-foreground">{alt}</span>}
+    </Link>
   );
 }

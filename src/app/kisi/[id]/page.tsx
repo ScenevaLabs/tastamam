@@ -558,6 +558,7 @@ export default async function KisiDetay({
                   kisiId={kisi.id}
                   isGirisi={donem}
                   girisBildirgesiVar={belgeMap.get("isegiris_bildirgesi")?.durum === "var"}
+                  ayrilisBildirgesiVar={belgeMap.get("istenayrilis_bildirgesi")?.durum === "var"}
                 />
               </details>
             );

@@ -19,6 +19,10 @@ import {
 import { varsayilanKod, type PuantajIzni } from "@/lib/puantaj";
 import { AY_RE, ayAdi, puantajExcel, puantajYukle } from "@/lib/puantaj-veri";
 import { mailGonder } from "@/lib/mail";
+import { dosyaMetniniCikar } from "@/lib/belge-tanima";
+import { dogumTarihiAyikla } from "@/lib/dogum-tarihi";
+import { bugunIso } from "@/lib/isg";
+import { dogumTarihiAdayDosyalari, dosyaIndir } from "@/lib/ozluk-dosya";
 import { MODULLER, type Modul } from "@/lib/types";
 
 // Faz D kayıt modüllerinin (puantaj, yıllık izin) sunucu eylemleri.
@@ -49,38 +53,20 @@ async function kapaliAyAdi(supabase: Supabase, bas: string, bit: string): Promis
 
 // ── Puantaj ─────────────────────────────────────────────────────────
 
-/** Bir günü elle değiştirir. Giriş–çıkış saati girilirse fazla çalışma
- *  saatlerden hesaplanır (elle girilen değer yok sayılır). Kod, saat ve
- *  fazla çalışmanın hepsi boşsa gün varsayılana döner (satır silinir). */
-export async function puantajGunKaydet(params: {
-  kisiId: string;
-  tarih: string;
-  kod: string | null;
-  fazlaSaat: number;
-  giris?: string | null;
-  cikis?: string | null;
-}): Promise<{ error: string | null }> {
-  const { kisiId, tarih, kod } = params;
-  const giris = params.giris || null;
-  const cikis = params.cikis || null;
-  if (!TARIH_RE.test(tarih)) return { error: "Tarih geçersiz." };
+type GunGirdisi = { tarih: string; kod: string | null; fazlaSaat: number; giris: string | null; cikis: string | null };
+type GunSatiri = { kod: string | null; fazla_saat: number; giris_saati: string | null; cikis_saati: string | null };
+
+/** Bir günün elle girişini mevzuata göre denetler ve yazılacak satırı döner.
+ *  izinler: o kişinin bu güne değebilecek yıllık izinleri (varsayılan kod için). */
+function gunSatiriHazirla(g: GunGirdisi, izinler: PuantajIzni[]): { error: string } | { satir: GunSatiri } {
+  const { tarih, kod, giris, cikis } = g;
   if (kod !== null && !(ELLE_KODLAR as readonly string[]).includes(kod)) return { error: "Bilinmeyen kod." };
   if (!giris !== !cikis) return { error: "Giriş ve çıkış saatini birlikte gir." };
   if ((giris && !SAAT_RE.test(giris)) || (cikis && !SAAT_RE.test(cikis))) return { error: "Saat geçersiz (SS:DD)." };
 
-  const supabase = await createClient();
-  if (await ayKapaliMi(supabase, tarih)) return { error: "Bu ay kapandı. Değiştirmek için önce ayı yeniden aç." };
-
-  let fazlaSaat = fazlaCalismaYuvarla(Number(params.fazlaSaat) || 0);
+  let fazlaSaat = fazlaCalismaYuvarla(Number(g.fazlaSaat) || 0);
   if (giris || fazlaSaat > 0) {
-    const { data: izinler } = await supabase
-      .from("yillik_izin")
-      .select("baslangic, bitis, yol_izni_gun")
-      .eq("kisi_id", kisiId)
-      .lte("baslangic", tarih)
-      .gte("bitis", gunEkle(tarih, -14))
-      .returns<PuantajIzni[]>();
-    const etkin = (kod as PuantajKodu | null) ?? varsayilanKod(tarih, izinler ?? []);
+    const etkin = (kod as PuantajKodu | null) ?? varsayilanKod(tarih, izinler);
     const sinir = fazlaSaatSiniri(etkin);
     if (sinir === 0) {
       const ad = PUANTAJ_KOD_ADI[etkin];
@@ -101,64 +87,160 @@ export async function puantajGunKaydet(params: {
       };
     }
   }
-
-  const { error } =
-    kod === null && fazlaSaat === 0 && !giris
-      ? await supabase.from("puantaj_gun").delete().eq("kisi_id", kisiId).eq("tarih", tarih)
-      : await supabase.from("puantaj_gun").upsert({
-          kisi_id: kisiId,
-          tarih,
-          kod,
-          fazla_saat: fazlaSaat,
-          giris_saati: giris,
-          cikis_saati: cikis,
-          updated_at: new Date().toISOString(),
-        });
-  if (error) return { error: error.message };
-  revalidatePath("/puantaj");
-  return { error: null };
+  return { satir: { kod, fazla_saat: fazlaSaat, giris_saati: giris, cikis_saati: cikis } };
 }
 
-/** Aynı günün giriş–çıkış saatini birden fazla çalışana yazar (14 Ekim 2026).
- *  Her kişi tek tek puantajGunKaydet'ten geçer (kapalı ay, ara dinlenme,
- *  11 saat, çalışılmayan gün kuralları aynen); elle girilmiş kod korunur,
- *  yalnızca saat (ve ondan hesaplanan fazla çalışma) değişir. O gün iş
- *  dönemi olmayan kişi atlanır. */
-export async function puantajSaatUygula(params: {
+/** Bir günü elle değiştirir. Giriş–çıkış saati girilirse fazla çalışma
+ *  saatlerden hesaplanır (elle girilen değer yok sayılır). Kod, saat ve
+ *  fazla çalışmanın hepsi boşsa gün varsayılana döner (satır silinir). */
+export async function puantajGunKaydet(params: {
+  kisiId: string;
   tarih: string;
-  kisiIdler: string[];
-  giris: string;
-  cikis: string;
-}): Promise<{ error: string | null; atlanan: { kisiId: string; neden: string }[] }> {
-  const { tarih, giris, cikis } = params;
-  const kisiIdler = [...new Set(params.kisiIdler)].slice(0, 200);
-  if (!TARIH_RE.test(tarih)) return { error: "Tarih geçersiz.", atlanan: [] };
-  if (!SAAT_RE.test(giris) || !SAAT_RE.test(cikis)) return { error: "Saat geçersiz (SS:DD).", atlanan: [] };
-  if (kisiIdler.length === 0) return { error: null, atlanan: [] };
+  kod: string | null;
+  fazlaSaat: number;
+  giris?: string | null;
+  cikis?: string | null;
+}): Promise<{ error: string | null }> {
+  const giris = params.giris || "";
+  const cikis = params.cikis || "";
+  const r = await puantajTopluKaydet({
+    hucreler: [{ kisiId: params.kisiId, tarih: params.tarih }],
+    kod: params.kod,
+    saat: giris || cikis ? { giris, cikis } : "temizle",
+    fazlaSaat: params.fazlaSaat,
+  });
+  return { error: r.error ?? r.atlanan[0]?.neden ?? null };
+}
+
+export type TopluAtlanan = { kisiId: string; tarih: string; neden: string };
+
+/** Birden fazla hücreye aynı ayarı yazar (20 Ekim 2026: tablodan çoklu seçim
+ *  ve "bu ayarları başka çalışanlara da uygula"). Her hücre tek gün kaydıyla
+ *  aynı kurallardan geçer (kapalı ay, ara dinlenme, 11 saat, çalışılmayan gün).
+ *  kod "koru": hücrenin elle girilmiş kodu kalır. saat "koru": mevcut saat ve
+ *  fazla çalışma kalır; çalışılmayan bir koda geçen günün saati silinir.
+ *  O gün iş dönemi olmayan hücre atlanır; birden fazla hücrede, günü yıllık
+ *  izinden gelen hücre de (tek kaynak İzinler). */
+export async function puantajTopluKaydet(params: {
+  hucreler: { kisiId: string; tarih: string }[];
+  kod: string | null | "koru";
+  saat: { giris: string; cikis: string } | "koru" | "temizle";
+  /** Saat yazılmıyorsa elle fazla çalışma; verilmezse "koru"da mevcut kalır, "temizle"de 0. */
+  fazlaSaat?: number;
+}): Promise<{ error: string | null; atlanan: TopluAtlanan[] }> {
+  const hucreler = [...new Map(params.hucreler.map((h) => [`${h.kisiId}:${h.tarih}`, h])).values()].slice(0, 2000);
+  if (hucreler.length === 0) return { error: null, atlanan: [] };
+  if (hucreler.some((h) => !TARIH_RE.test(h.tarih))) return { error: "Tarih geçersiz.", atlanan: [] };
+  if (params.kod !== "koru" && params.kod !== null && !(ELLE_KODLAR as readonly string[]).includes(params.kod)) {
+    return { error: "Bilinmeyen kod.", atlanan: [] };
+  }
+
+  const tarihler = hucreler.map((h) => h.tarih).sort();
+  const ilk = tarihler[0];
+  const son = tarihler.at(-1)!;
+  const kisiIdler = [...new Set(hucreler.map((h) => h.kisiId))];
 
   const supabase = await createClient();
-  const [{ data: donemler }, { data: mevcut }] = await Promise.all([
+  const [{ data: kapaliAylar }, { data: donemler }, { data: mevcut }, { data: izinler }] = await Promise.all([
+    supabase
+      .from("puantaj_ay")
+      .select("ay")
+      .not("kapandi_at", "is", null)
+      .gte("ay", `${ilk.slice(0, 7)}-01`)
+      .lte("ay", `${son.slice(0, 7)}-01`),
     supabase
       .from("is_girisi")
-      .select("kisi_id")
+      .select("kisi_id, giris_tarihi, cikis_tarihi")
       .in("kisi_id", kisiIdler)
-      .lte("giris_tarihi", tarih)
-      .or(`cikis_tarihi.is.null,cikis_tarihi.gte.${tarih}`),
-    supabase.from("puantaj_gun").select("kisi_id, kod").in("kisi_id", kisiIdler).eq("tarih", tarih),
+      .lte("giris_tarihi", son)
+      .or(`cikis_tarihi.is.null,cikis_tarihi.gte.${ilk}`),
+    supabase
+      .from("puantaj_gun")
+      .select("kisi_id, tarih, kod, fazla_saat, giris_saati, cikis_saati")
+      .in("kisi_id", kisiIdler)
+      .gte("tarih", ilk)
+      .lte("tarih", son),
+    supabase
+      .from("yillik_izin")
+      .select("kisi_id, baslangic, bitis, yol_izni_gun")
+      .in("kisi_id", kisiIdler)
+      .lte("baslangic", son)
+      .gte("bitis", gunEkle(ilk, -14)),
   ]);
-  const donemde = new Set((donemler ?? []).map((d) => d.kisi_id as string));
-  const elleKod = new Map((mevcut ?? []).map((m) => [m.kisi_id as string, m.kod as string | null]));
+  const kapali = new Set((kapaliAylar ?? []).map((a) => (a.ay as string).slice(0, 7)));
+  const mevcutMap = new Map((mevcut ?? []).map((m) => [`${m.kisi_id}:${m.tarih}`, m]));
+  const izinMap = new Map<string, PuantajIzni[]>();
+  for (const i of izinler ?? []) izinMap.set(i.kisi_id, [...(izinMap.get(i.kisi_id) ?? []), i]);
 
-  const atlanan: { kisiId: string; neden: string }[] = [];
-  for (const kisiId of kisiIdler) {
-    if (!donemde.has(kisiId)) {
-      atlanan.push({ kisiId, neden: "bu gün iş dönemi yok" });
+  const atlanan: TopluAtlanan[] = [];
+  const yazilacak: (GunSatiri & { kisi_id: string; tarih: string })[] = [];
+  const silinecek: { kisiId: string; tarih: string }[] = [];
+
+  for (const { kisiId, tarih } of hucreler) {
+    const atla = (neden: string) => atlanan.push({ kisiId, tarih, neden });
+    if (kapali.has(tarih.slice(0, 7))) {
+      atla("Bu ay kapandı. Değiştirmek için önce ayı yeniden aç.");
       continue;
     }
-    const r = await puantajGunKaydet({ kisiId, tarih, kod: elleKod.get(kisiId) ?? null, fazlaSaat: 0, giris, cikis });
-    if (r.error) atlanan.push({ kisiId, neden: r.error });
+    const donemde = (donemler ?? []).some(
+      (d) => d.kisi_id === kisiId && d.giris_tarihi <= tarih && (!d.cikis_tarihi || d.cikis_tarihi >= tarih),
+    );
+    if (!donemde) {
+      atla("bu gün iş dönemi yok");
+      continue;
+    }
+    const kisiIzinleri = izinMap.get(kisiId) ?? [];
+    const m = mevcutMap.get(`${kisiId}:${tarih}`);
+    const kod = params.kod === "koru" ? ((m?.kod as string | null) ?? null) : params.kod;
+    const varsayilan = varsayilanKod(tarih, kisiIzinleri);
+    if (hucreler.length > 1 && kod !== null && !m?.kod && (varsayilan === "Yİ" || varsayilan === "Üİ")) {
+      atla("yıllık izin günü, İzinler sayfasından değişir");
+      continue;
+    }
+
+    let giris: string | null;
+    let cikis: string | null;
+    let fazla: number;
+    if (params.saat === "koru") {
+      giris = m?.giris_saati?.slice(0, 5) ?? null;
+      cikis = m?.cikis_saati?.slice(0, 5) ?? null;
+      fazla = params.fazlaSaat ?? Number(m?.fazla_saat ?? 0);
+      if (fazlaSaatSiniri((kod as PuantajKodu | null) ?? varsayilan) === 0) {
+        giris = null;
+        cikis = null;
+        fazla = 0;
+      }
+    } else if (params.saat === "temizle") {
+      giris = null;
+      cikis = null;
+      fazla = params.fazlaSaat ?? 0;
+    } else {
+      giris = params.saat.giris || null;
+      cikis = params.saat.cikis || null;
+      fazla = 0;
+    }
+
+    const r = gunSatiriHazirla({ tarih, kod, fazlaSaat: fazla, giris, cikis }, kisiIzinleri);
+    if ("error" in r) {
+      atla(r.error);
+      continue;
+    }
+    const s = r.satir;
+    if (s.kod === null && s.fazla_saat === 0 && !s.giris_saati) silinecek.push({ kisiId, tarih });
+    else yazilacak.push({ ...s, kisi_id: kisiId, tarih });
   }
-  revalidatePath("/puantaj");
+
+  const updatedAt = new Date().toISOString();
+  if (yazilacak.length) {
+    const { error } = await supabase.from("puantaj_gun").upsert(yazilacak.map((y) => ({ ...y, updated_at: updatedAt })));
+    if (error) return { error: error.message, atlanan };
+  }
+  for (const kisiId of new Set(silinecek.map((s) => s.kisiId))) {
+    const gunler = silinecek.filter((s) => s.kisiId === kisiId).map((s) => s.tarih);
+    const { error } = await supabase.from("puantaj_gun").delete().eq("kisi_id", kisiId).in("tarih", gunler);
+    if (error) return { error: error.message, atlanan };
+  }
+  if (yazilacak.length || silinecek.length) revalidatePath("/puantaj");
   return { error: null, atlanan };
 }
 
@@ -343,6 +425,58 @@ export async function dogumTarihiKaydet(kisiId: string, tarih: string): Promise<
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/izin");
   return { error: null };
+}
+
+/** Doğum tarihi boşsa kişinin SGK bildirgelerinden ya da nüfus kayıt
+ *  örneğinden okur ve yazar (20 Ekim 2026). Elle girilmiş tarihe dokunmaz.
+ *  Kişi başına çağrılır: ana sayfadaki toplu düğme kişileri sırayla dolaşır
+ *  (tek istekte hepsi sunucu süre sınırını aşar). */
+export async function dogumTarihiBelgedenBul(
+  kisiId: string,
+): Promise<{ error: string | null; tarih: string | null; kaynak?: string }> {
+  const supabase = await createClient();
+  const { data: kisi } = await supabase
+    .from("kisi")
+    .select("ad_soyad, tc_kimlik_no, dogum_tarihi, is_girisi(giris_tarihi, cikis_tarihi, durum)")
+    .eq("id", kisiId)
+    .single<{
+      ad_soyad: string;
+      tc_kimlik_no: string;
+      dogum_tarihi: string | null;
+      is_girisi: { giris_tarihi: string; cikis_tarihi: string | null; durum: string }[];
+    }>();
+  if (!kisi) return { error: "Kişi bulunamadı.", tarih: null };
+  if (kisi.dogum_tarihi) return { error: null, tarih: kisi.dogum_tarihi };
+
+  let dosyalar: Awaited<ReturnType<typeof dogumTarihiAdayDosyalari>>;
+  try {
+    dosyalar = await dogumTarihiAdayDosyalari({
+      adSoyad: kisi.ad_soyad,
+      varsayilanDurum: kisi.is_girisi.some((d) => d.durum === "aktif") ? "aktif" : "pasif",
+      donemler: kisi.is_girisi.map((d) => ({ girisTarihi: d.giris_tarihi, cikisTarihi: d.cikis_tarihi })),
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Klasör okunamadı.", tarih: null };
+  }
+  const bugun = bugunIso();
+  for (const dosya of dosyalar.slice(0, 6)) {
+    let metin = "";
+    try {
+      metin = await dosyaMetniniCikar(dosya.dosyaAdi, await dosyaIndir(dosya.yol));
+    } catch {
+      continue;
+    }
+    const tarih = dogumTarihiAyikla(metin, dosya.kaynak, kisi.tc_kimlik_no, bugun);
+    if (!tarih) continue;
+    const { error } = await supabase.from("kisi").update({ dogum_tarihi: tarih }).eq("id", kisiId).is("dogum_tarihi", null);
+    if (error) return { error: error.message, tarih: null };
+    revalidatePath(`/kisi/${kisiId}`);
+    revalidatePath("/izin");
+    revalidatePath("/");
+    revalidatePath("/calisanlar");
+    return { error: null, tarih, kaynak: dosya.dosyaAdi };
+  }
+  return { error: null, tarih: null };
 }
 
 export async function modulleriKaydet(formData: FormData): Promise<{ error: string | null }> {

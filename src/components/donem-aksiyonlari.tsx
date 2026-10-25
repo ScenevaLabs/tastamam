@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateIsGirisi, deleteIsGirisi } from "@/app/actions";
+import { updateIsGirisi, deleteIsGirisi, topluCikisUygula } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TarihInput } from "@/components/tarih-input";
@@ -13,10 +13,12 @@ export function DonemAksiyonlari({
   kisiId,
   isGirisi,
   girisBildirgesiVar,
+  ayrilisBildirgesiVar,
 }: {
   kisiId: string;
   isGirisi: IsGirisi;
   girisBildirgesiVar: boolean;
+  ayrilisBildirgesiVar: boolean;
 }) {
   const router = useRouter();
   const [mod, setMod] = useState<"kapali" | "duzenle" | "sil-onay">("kapali");
@@ -24,10 +26,21 @@ export function DonemAksiyonlari({
   const [isPending, startTransition] = useTransition();
 
   if (girisBildirgesiVar) {
+    // Giriş bilgileri kilitli, ama çıkış tarihi girilebilmeli (20 Ekim 2026
+    // hatası: bildirgesi alınmış ve pasife düşmüş dönemin çıkışı hiçbir yerden
+    // girilemiyordu). Ayrılış bildirgesi de alındıysa çıkış da kilitlenir.
     return (
-      <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
-        İş giriş bildirgesi alınmış — bu dönem düzenlenemez/silinemez.
-      </p>
+      <div className="flex flex-col gap-2 border-t border-border px-4 py-2">
+        {ayrilisBildirgesiVar && !isGirisi.cikis_tarihi && (
+          <p className="text-xs font-bold text-[var(--warn)]">
+            İşten ayrılış bildirgesi yüklenmiş ama çıkış tarihi girilmemiş. Bildirgedeki çıkış tarihini gir.
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          İş giriş bildirgesi alınmış — giriş bilgileri düzenlenemez, dönem silinemez.
+        </p>
+        {(!isGirisi.cikis_tarihi || !ayrilisBildirgesiVar) && <CikisGir isGirisi={isGirisi} />}
+      </div>
     );
   }
 
@@ -55,7 +68,7 @@ export function DonemAksiyonlari({
         return;
       }
       if (result.kisiSilindi) {
-        router.push("/");
+        router.push("/calisanlar");
         return;
       }
       router.refresh();
@@ -179,5 +192,86 @@ export function DonemAksiyonlari({
         Sil
       </Button>
     </div>
+  );
+}
+
+/** Yalnızca çıkış tarihi ve nedeni: dönemi pasife alır, kişinin başka aktif
+ *  dönemi kalmadıysa klasörünü PASİF'e taşır (İş çıkışı sayfasıyla aynı
+ *  eylem). Muhasebeye mail ayrı düğmeyle gider. */
+function CikisGir({ isGirisi }: { isGirisi: IsGirisi }) {
+  const router = useRouter();
+  const [acik, setAcik] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [uyari, setUyari] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function kaydet(formData: FormData) {
+    const tarih = (formData.get("cikis_tarihi") as string) || "";
+    const neden = (formData.get("cikis_nedeni") as string) || null;
+    setError(null);
+    if (!tarih) {
+      setError("Çıkış tarihini gir.");
+      return;
+    }
+    if (tarih < isGirisi.giris_tarihi) {
+      setError("Çıkış tarihi giriş tarihinden önce olamaz.");
+      return;
+    }
+    startTransition(async () => {
+      const r = await topluCikisUygula([isGirisi.id], tarih, neden);
+      if (r.error) {
+        setError(r.error);
+        return;
+      }
+      setUyari(r.klasorUyarilari?.length ? r.klasorUyarilari.join(" ") : null);
+      setAcik(false);
+      router.refresh();
+    });
+  }
+
+  if (!acik) {
+    return (
+      <div className="flex flex-col gap-1">
+        <Button type="button" size="xs" variant="outline" className="self-start" onClick={() => setAcik(true)}>
+          {isGirisi.cikis_tarihi ? "Çıkış tarihini düzelt" : "Çıkış tarihi gir"}
+        </Button>
+        {uyari && <p className="text-xs text-[var(--warn)]">{uyari}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <form action={kaydet} className="flex flex-col gap-3 py-1">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Çıkış Tarihi</Label>
+          <TarihInput name="cikis_tarihi" defaultValue={isGirisi.cikis_tarihi ?? ""} required />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Çıkış Nedeni</Label>
+          <select
+            name="cikis_nedeni"
+            defaultValue={isGirisi.cikis_nedeni ?? ""}
+            className="h-9 rounded-md border border-border bg-transparent px-2 text-sm"
+          >
+            <option value="">Seçilmedi</option>
+            {CIKIS_NEDENLERI.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" size="xs" disabled={isPending}>
+          {isPending ? "Kaydediliyor..." : "Kaydet"}
+        </Button>
+        <Button type="button" size="xs" variant="outline" onClick={() => setAcik(false)}>
+          Vazgeç
+        </Button>
+      </div>
+    </form>
   );
 }

@@ -27,6 +27,8 @@ function sayi(n: number): string {
   return String(n).replace(".", ",");
 }
 
+// Tek sayfa A4 (20 Ekim 2026): 31 günlük ay, her gün saatli en kötü
+// durumda da bir sayfaya sığar; satır boşlukları buna göre dar.
 export function puantajFormuDocx(v: PuantajFormuVerisi): Buffer {
   const G = [850, 1250, 1800, 850, 850, 950, 1350, 1100]; // toplam 9000
   const baslik: TabloHucresi[] = ["Tarih", "Gün", "Durum", "Giriş", "Çıkış", "Ara din.", "Çalışma", "Fazla ç."].map(
@@ -98,7 +100,7 @@ export function puantajFormuDocx(v: PuantajFormuVerisi): Buffer {
         { metin: a, kalin: true, boyut: 9 },
         { metin: b, boyut: 9 },
       ]),
-      30,
+      20,
     ),
     p(
       `Normal günlük çalışma ${saatMetni(CALISMA.gunlukNormalSaat.deger)}; ara dinlenme çalışma süresinden sayılmaz. Hafta tatili ve genel tatilde yapılan çalışmanın tamamı fazla çalışmadır.`,
@@ -109,12 +111,12 @@ export function puantajFormuDocx(v: PuantajFormuVerisi): Buffer {
       { boyut: 10, sonra: 120 },
     ),
     p(`Düzenleme tarihi: ${v.duzenlemeTarihi}`, { boyut: 9, sonra: 160 }),
-    imzaTablosu("Çalışan", "İşveren / işveren vekili"),
+    imzaTablosu("Çalışan", "İşveren / işveren vekili", 9000, 700),
     p(
       "Dayanak: 4857 sayılı İş Kanunu md. 41, 63, 68; Çalışma Süreleri Yönetmeliği md. 9; İş Kanununa İlişkin Fazla Çalışma ve Fazla Sürelerle Çalışma Yönetmeliği.",
       { boyut: 7 },
     ),
   ].join("");
 
-  return docxPaketle(govde, 850);
+  return docxPaketle(govde, 720);
 }

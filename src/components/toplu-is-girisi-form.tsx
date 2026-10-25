@@ -23,6 +23,7 @@ type Satir = {
   selectedKisi: Kisi | null;
   adSoyad: string;
   tcKimlikNo: string;
+  dogumTarihi: string;
   selectedMeslek: Meslek | null;
   girisTarihi: string;
   ucretTutari: string;
@@ -37,6 +38,7 @@ function bosSatir(kisilerVar: boolean): Satir {
     selectedKisi: null,
     adSoyad: "",
     tcKimlikNo: "",
+    dogumTarihi: "",
     selectedMeslek: null,
     girisTarihi: "",
     ucretTutari: "",
@@ -113,6 +115,7 @@ export function TopluIsGirisiForm({ kisiler }: { kisiler: Kisi[] }) {
       kisiId: s.mode === "mevcut" ? (s.selectedKisi?.id ?? null) : null,
       adSoyad: s.mode === "yeni" ? s.adSoyad : (s.selectedKisi?.ad_soyad ?? null),
       tcKimlikNo: s.mode === "yeni" ? s.tcKimlikNo : null,
+      dogumTarihi: s.dogumTarihi || null,
       meslekKodu: s.selectedMeslek?.kod ?? null,
       meslekAdi: s.selectedMeslek?.isim ?? null,
       girisTarihi: s.girisTarihi,
@@ -253,6 +256,20 @@ export function TopluIsGirisiForm({ kisiler }: { kisiler: Kisi[] }) {
                     />
                   </div>
                 </>
+              )}
+              {(satir.mode === "yeni" || (satir.selectedKisi && !satir.selectedKisi.dogum_tarihi)) && (
+                <div className="flex flex-col gap-2">
+                  <Label>
+                    Doğum Tarihi{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (isteğe bağlı; boş kalırsa SGK bildirgesi yüklenince okunur)
+                    </span>
+                  </Label>
+                  <TarihInput
+                    value={satir.dogumTarihi}
+                    onChange={(e) => satiriGuncelle(satir.localId, { dogumTarihi: e.target.value })}
+                  />
+                </div>
               )}
               {(satir.mode === "yeni" || satir.selectedKisi) && (
                 <div className="flex flex-col gap-2">

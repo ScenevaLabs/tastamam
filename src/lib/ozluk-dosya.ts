@@ -483,3 +483,35 @@ export async function belgeyiYerlestir(params: {
   await d.tasi(kaynak, hedefYol);
   return dosyaAdi;
 }
+
+/** Doğum tarihi okunabilecek dosyalar (20 Ekim 2026): dönem klasörlerindeki
+ *  SGK giriş/ayrılış bildirgeleri önce (en güvenilir), sonra kök klasördeki
+ *  nüfus kayıt örneği. Adı standart dışı olsa da adında geçen kodla bulunur. */
+export async function dogumTarihiAdayDosyalari(params: {
+  adSoyad: string;
+  varsayilanDurum: "aktif" | "pasif";
+  donemler: { girisTarihi: string; cikisTarihi: string | null }[];
+}): Promise<{ yol: string; dosyaAdi: string; kaynak: "sgk" | "nufus" }[]> {
+  const d = depo();
+  const kisiYol = await kisiKlasoruYolu(params.adSoyad, params.varsayilanDurum);
+  const sgk: { yol: string; dosyaAdi: string; kaynak: "sgk" }[] = [];
+  const goruldu = new Set<string>();
+  for (const donem of params.donemler) {
+    const adaylar = donem.cikisTarihi
+      ? [`${tarihNoktali(donem.girisTarihi)} - ${tarihNoktali(donem.cikisTarihi)}`, tarihNoktali(donem.girisTarihi)]
+      : [tarihNoktali(donem.girisTarihi)];
+    for (const klasor of adaylar) {
+      if (goruldu.has(klasor)) continue;
+      goruldu.add(klasor);
+      for (const dosyaAdi of await d.dosyalariListele(`${kisiYol}/${klasor}`)) {
+        if (/(isegiris|istenayrilis)[^/]*\.pdf$/i.test(dosyaAdi) && !/imzal/i.test(dosyaAdi)) {
+          sgk.push({ yol: `${kisiYol}/${klasor}/${dosyaAdi}`, dosyaAdi, kaynak: "sgk" });
+        }
+      }
+    }
+  }
+  const nufus = (await d.dosyalariListele(kisiYol))
+    .filter((dosyaAdi) => /n[uü]fus/i.test(dosyaAdi) && /\.(pdf|docx)$/i.test(dosyaAdi))
+    .map((dosyaAdi) => ({ yol: `${kisiYol}/${dosyaAdi}`, dosyaAdi, kaynak: "nufus" as const }));
+  return [...sgk, ...nufus];
+}

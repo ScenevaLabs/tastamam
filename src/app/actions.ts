@@ -15,6 +15,7 @@ import {
 } from "@/lib/ozluk-dosya";
 import { VARSAYILAN_GECERLILIK_YIL, yilEkle } from "@/lib/isg";
 import { formatDonemAraligi, tarihSlash } from "@/lib/utils";
+import { dogumTarihiBelgedenBul } from "@/app/kayit-actions";
 import { gecerliSablon, sablonDoldur } from "@/lib/sablon";
 import {
   iseGirisMailIcerigi,
@@ -69,6 +70,7 @@ export async function kisiBelgeYoksay(formData: FormData) {
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
 }
 
 export async function kisiBelgeGeriAl(formData: FormData) {
@@ -85,6 +87,7 @@ export async function kisiBelgeGeriAl(formData: FormData) {
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
 }
 
 export async function isGirisiBelgeYoksay(formData: FormData) {
@@ -109,6 +112,7 @@ export async function isGirisiBelgeYoksay(formData: FormData) {
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
 }
 
 export async function isGirisiBelgeGeriAl(formData: FormData) {
@@ -126,6 +130,7 @@ export async function isGirisiBelgeGeriAl(formData: FormData) {
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
 }
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -360,8 +365,13 @@ export async function belgeYuklemeTamamla(
 
   if (istek.tur === "kok") {
     await kokBelgeVarIsaretle(supabase, istek.kisiId, istek.belgeTipi);
+    if (istek.belgeTipi === "nufus_kayit") await dogumTarihiBelgedenBul(istek.kisiId).catch(() => null);
   } else if (istek.tur === "donem") {
     await donemBelgeVarIsaretle(supabase, istek.isGirisiId, istek.belgeTipi);
+    if (istek.belgeTipi === "isegiris_bildirgesi" || istek.belgeTipi === "istenayrilis_bildirgesi") {
+      const { data: d } = await supabase.from("is_girisi").select("kisi_id").eq("id", istek.isGirisiId).single();
+      if (d) await dogumTarihiBelgedenBul(d.kisi_id as string).catch(() => null);
+    }
   } else if (istek.tur === "izin") {
     const { error } = await supabase
       .from("yillik_izin")
@@ -377,6 +387,7 @@ export async function belgeYuklemeTamamla(
     revalidatePath("/puantaj");
     revalidatePath(`/kisi/${istek.kisiId}`);
     revalidatePath("/");
+    revalidatePath("/calisanlar");
   } else if (istek.tur === "durum") {
     const { error } = await supabase.from("kisi_durum").update({ dosya_adi: dosyaAdi }).eq("id", istek.durumId);
     if (error) return { error: `Dosya yazıldı ama kayıt güncellenemedi: ${error.message}` };
@@ -413,6 +424,7 @@ export async function belgeYuklemeTamamla(
 
   revalidatePath(`/kisi/${istek.kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { error: null };
 }
 
@@ -434,6 +446,7 @@ export async function isgBelgeYoksay(formData: FormData) {
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
 }
 
 export async function isgBelgeGeriAl(formData: FormData) {
@@ -452,6 +465,7 @@ export async function isgBelgeGeriAl(formData: FormData) {
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
 }
 
 
@@ -752,8 +766,11 @@ export async function kisiKlasoruTara(
     }
 
     if (islenen.length > 0) {
+      // Yeni yerleşen bildirge/nüfus kaydından doğum tarihi (boşsa).
+      await dogumTarihiBelgedenBul(kisiId).catch(() => null);
       revalidatePath(`/kisi/${kisiId}`);
       revalidatePath("/");
+      revalidatePath("/calisanlar");
     }
 
     return {
@@ -824,6 +841,7 @@ export async function taramaSecimleriniUygula(
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { error: null, hatalar };
 }
 
@@ -931,6 +949,7 @@ export async function odemeOdendiIsaretle(formData: FormData): Promise<{ error: 
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   revalidatePath("/odemeler");
   return { error: null };
 }
@@ -948,6 +967,7 @@ export async function odemeGorMezdenGel(formData: FormData): Promise<{ error: st
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   revalidatePath("/odemeler");
   return { error: null };
 }
@@ -965,6 +985,7 @@ export async function odemeGeriAl(formData: FormData): Promise<{ error: string |
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   revalidatePath("/odemeler");
   return { error: null };
 }
@@ -1023,6 +1044,7 @@ export async function updateIsGirisi(
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { error: null };
 }
 
@@ -1053,11 +1075,13 @@ export async function deleteIsGirisi(
   if (!kalanDonemler || kalanDonemler.length === 0) {
     await supabase.from("kisi").delete().eq("id", kisiId);
     revalidatePath("/");
+    revalidatePath("/calisanlar");
     return { error: null, kisiSilindi: true };
   }
 
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { error: null, kisiSilindi: false };
 }
 
@@ -1123,6 +1147,7 @@ export async function updateProfil(
   }
 
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { error: null };
 }
 
@@ -1221,6 +1246,8 @@ export type TopluGirisSatiri = {
   kisiId: string | null;
   adSoyad: string | null;
   tcKimlikNo: string | null;
+  /** İsteğe bağlı (20 Ekim 2026); mevcut kişide yalnızca boşsa yazılır. */
+  dogumTarihi?: string | null;
   meslekKodu: string | null;
   meslekAdi: string | null;
   girisTarihi: string;
@@ -1240,6 +1267,7 @@ export async function topluIsGirisiOlustur(
   for (const satir of satirlar) {
     let kisiId = satir.kisiId;
     let adSoyad = satir.adSoyad ?? "?";
+    const dogumTarihi = satir.dogumTarihi && /^\d{4}-\d{2}-\d{2}$/.test(satir.dogumTarihi) ? satir.dogumTarihi : null;
 
     if (!satir.meslekKodu || !satir.meslekAdi) {
       sonuclar.push({ adSoyad, ok: false, hata: "Meslek seçilmedi." });
@@ -1256,6 +1284,7 @@ export async function topluIsGirisiOlustur(
         .insert({
           ad_soyad: satir.adSoyad,
           tc_kimlik_no: satir.tcKimlikNo,
+          dogum_tarihi: dogumTarihi,
           meslek_kodu: satir.meslekKodu,
           meslek_adi: satir.meslekAdi,
         })
@@ -1274,6 +1303,7 @@ export async function topluIsGirisiOlustur(
         .from("kisi")
         .update({ meslek_kodu: satir.meslekKodu, meslek_adi: satir.meslekAdi })
         .eq("id", kisiId);
+      if (dogumTarihi) await supabase.from("kisi").update({ dogum_tarihi: dogumTarihi }).eq("id", kisiId).is("dogum_tarihi", null);
     }
 
     const { data: girisi, error: girisError } = await supabase
@@ -1298,6 +1328,7 @@ export async function topluIsGirisiOlustur(
   }
 
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { sonuclar };
 }
 
@@ -1354,6 +1385,7 @@ export async function topluGirisMailiGonder(
   );
 
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   if (!sonuc.ok) return { error: sonuc.error };
   return { error: null };
 }
@@ -1380,7 +1412,9 @@ export async function topluCikisUygula(
   }
 
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   revalidatePath("/is-cikisi");
+  revalidatePath("/kisi/[id]", "page");
 
   // Kişi artık tamamen pasifse (başka aktif dönemi kalmadıysa) depodaki
   // klasörünü AKTİF'ten PASİF'e taşımayı dener — en iyi çaba, başarısız
@@ -1465,6 +1499,7 @@ export async function topluAyrilisMailiGonder(
   );
 
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   if (!sonuc.ok) return { error: sonuc.error };
   return { error: null };
 }

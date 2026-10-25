@@ -1,9 +1,9 @@
-import Link from "next/link";
 import type { FazlaCalismaEngeli } from "@/lib/donem-belge";
 import { AppHeader } from "@/components/app-header";
 import { ModulKapali } from "@/components/modul-kapali";
 import { PuantajTablosu } from "@/components/puantaj-tablosu";
 import { PuantajAyDugmeleri } from "@/components/puantaj-ay-dugmeleri";
+import { PuantajAySecici } from "@/components/puantaj-ay-secici";
 import { PuantajImzaListesi } from "@/components/puantaj-imza-listesi";
 import { saatsizCalisilanGun } from "@/lib/puantaj";
 import { createClient } from "@/lib/supabase/server";
@@ -53,21 +53,13 @@ export default async function PuantajSayfasi({ searchParams }: { searchParams: P
           <div>
             <h1 className="text-[30px] font-extrabold tracking-[-0.02em] sm:text-[34px]">Puantaj</h1>
             <div className="mt-2 flex items-center gap-3">
-              <Link
-                href={`/puantaj?ay=${ayKaydir(ay, -1)}`}
-                aria-label="Önceki ay"
-                className="px-1.5 text-lg text-muted-foreground hover:text-foreground"
-              >
-                ‹
-              </Link>
-              <span className="min-w-36 text-center text-[17px] font-bold">{ayAdi(ay)}</span>
-              <Link
-                href={`/puantaj?ay=${ayKaydir(ay, 1)}`}
-                aria-label="Sonraki ay"
-                className="px-1.5 text-lg text-muted-foreground hover:text-foreground"
-              >
-                ›
-              </Link>
+              <PuantajAySecici
+                ay={ay}
+                ayAdi={ayAdi(ay)}
+                onceki={ayKaydir(ay, -1)}
+                sonraki={ayKaydir(ay, 1)}
+                buAy={buAy}
+              />
               <span
                 className={`text-[13px] ${v.kapandi && !v.gonderildi ? "font-bold text-[var(--warn)]" : "text-muted-foreground"}`}
               >

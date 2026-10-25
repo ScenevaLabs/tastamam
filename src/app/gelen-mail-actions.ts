@@ -457,7 +457,10 @@ export async function gelenMailleriTara(): Promise<GelenTaramaSonucu> {
   }
 
   for (const kisiId of etkilenenKisiIds) revalidatePath(`/kisi/${kisiId}`);
-  if (etkilenenKisiIds.size > 0) revalidatePath("/");
+  if (etkilenenKisiIds.size > 0) {
+    revalidatePath("/");
+    revalidatePath("/calisanlar");
+  }
 
   return { otomatikDosyalanan, otomatikHatali, manuelGerekli, error: null };
 }
@@ -481,6 +484,7 @@ export async function gelenEkiDosyala(formData: FormData): Promise<{ error: stri
   ekTemizle(token);
   revalidatePath(`/kisi/${sonuc.kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   return { error: null };
 }
 

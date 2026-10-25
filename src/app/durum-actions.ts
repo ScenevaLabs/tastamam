@@ -24,6 +24,7 @@ function metin(fd: FormData, ad: string): string | null {
 function yenile(kisiId: string) {
   revalidatePath(`/kisi/${kisiId}`);
   revalidatePath("/");
+  revalidatePath("/calisanlar");
   revalidatePath("/takvim");
   revalidatePath("/puantaj");
 }

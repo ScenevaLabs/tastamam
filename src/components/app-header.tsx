@@ -11,7 +11,7 @@ export type MenuAnahtari = "calisanlar" | "odemeler" | "ayarlar" | Modul;
 
 // Modül sekmeleri yalnızca Ayarlar'da açıksa görünür (Faz D).
 const MENU: { anahtar: MenuAnahtari; etiket: string; href: string; modul?: Modul }[] = [
-  { anahtar: "calisanlar", etiket: "Çalışanlar", href: "/" },
+  { anahtar: "calisanlar", etiket: "Çalışanlar", href: "/calisanlar" },
   { anahtar: "takvim", etiket: "Takvim", href: "/takvim", modul: "takvim" },
   { anahtar: "puantaj", etiket: "Puantaj", href: "/puantaj", modul: "puantaj" },
   { anahtar: "izin", etiket: "İzinler", href: "/izin", modul: "izin" },
