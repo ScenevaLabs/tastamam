@@ -24,8 +24,11 @@ müşavirin hazırlamaya devam eder; Tastamam ona gidecek bildirimi zamanında h
 
 ### Ne yapar
 
+- **Ana sayfa:** genel durum tek bakışta: aktif çalışanlar, eksik evrak, yaklaşan yasal
+  süreler, doğum günleri ve son hareketler.
 - **Çalışan dosyası:** her çalışan için gereken özlük evrakı ve iş dönemi belgeleri tek
-  listede. Eksik olan görünür, yüklenen belge standart adla doğru klasöre gider.
+  listede. Eksik olan görünür, yüklenen belge standart adla doğru klasöre gider. Doğum
+  tarihi SGK bildirgesinden ya da nüfus kayıt örneğinden kendiliğinden okunur.
 - **İş girişi ve çıkışı:** SGK bildirgesi için muhasebeye mail tek tıkla (toplu giriş ve
   çıkış dahil). Muhasebeden dönen belge gelen kutusundan okunup doğru kişinin klasörüne
   dosyalanır.
@@ -35,7 +38,9 @@ müşavirin hazırlamaya devam eder; Tastamam ona gidecek bildirimi zamanında h
   görüntü ve ses kullanımı gibi işlemler için ayrı, isteğe bağlı açık rıza beyanı.
 - **Puantaj:** aylık çalışma çizelgesi; hafta tatili, genel tatil, yıllık izin ve rapor
   günleri kendiliğinden dolar. SGK eksik gün kodu önerisi, fazla çalışma takibi (270 saat
-  uyarısı), muhasebeye Excel, çalışana imzalatılacak çizelge.
+  uyarısı), muhasebeye Excel, çalışana imzalatılacak tek sayfalık çizelge. Birden çok
+  günü seçip tek seferde işaretleyebilir, bir çalışanın ayarlarını diğerlerine
+  uygulayabilirsin.
 - **Yıllık izin:** kıdeme ve yaşa göre hak ediş, izin kayıt belgesi, imzalı izin formu,
   çıkışta ödenecek izin.
 - **İSG:** işyerinin tehlike sınıfına göre eğitim ve sağlık muayenesi yenileme tarihleri,
@@ -107,10 +112,12 @@ Tastamam runs on your own computer. Your records and documents stay on your mach
 accounts you own (e.g. your own Supabase project); no data is ever sent to us or anyone else.
 It is not a hosted service but an application you download and run yourself.
 
-**Features:** employee files with required-document checklists; hiring and termination
+**Features:** a home page with the overall status (active employees, missing documents,
+upcoming deadlines, birthdays, recent activity); employee files with required-document
+checklists, with dates of birth read from SGK notices or civil registry records; hiring and termination
 notices e-mailed to the accountant, with replies filed automatically; employment contracts
 from a template (a sample is included, or upload your own); KVKK privacy notices per
-employee with optional separate consent forms; monthly timesheets with SGK missing-day codes and overtime limits; annual leave
+employee with optional separate consent forms; monthly timesheets with SGK missing-day codes, overtime limits and multi-day bulk editing; annual leave
 entitlement and leave records; occupational health and safety renewals by hazard class;
 work accident records with the 3-business-day SGK notification countdown; overtime consent
 and prohibition warnings, employment certificates and signed payslip archive; special
