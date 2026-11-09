@@ -94,6 +94,8 @@ klasörü aç ve **"KURULUM.md'yi oku ve Tastamam'ı kur"** de. Elle kurmak içi
 Gerekenler: Node.js 20+, ücretsiz bir Supabase hesabı (ya da Docker ile tamamen yerel
 veritabanı), bir şirket mail kutusu (SMTP).
 
+Sürümler ve güncellemede dikkat edilecekler: [CHANGELOG.md](CHANGELOG.md).
+
 ### Önemli
 
 Tastamam hukuki danışmanlık değildir. Süreleri ve kuralları mali müşavirinle teyit et.
@@ -135,7 +137,7 @@ The interface and documentation are in Turkish, since the rules are Turkish law.
 **Install:** Tastamam runs on your own computer and is used from the browser. Download the
 repository, open it with your coding agent and ask it to follow [KURULUM.md](KURULUM.md),
 or follow the steps yourself. Requires Node.js 20+, a free Supabase project (or local
-Supabase via Docker) and an SMTP mailbox.
+Supabase via Docker) and an SMTP mailbox. Release notes: [CHANGELOG.md](CHANGELOG.md).
 
 **Disclaimer:** not legal advice. Verify deadlines and rules with your accountant.
 

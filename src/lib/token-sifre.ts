@@ -24,7 +24,11 @@ export function tokenSifrele(duz: string, sir: string): string {
 export function tokenCoz(deger: string, sir: string): { duz: string; eski: boolean } {
   if (!deger.startsWith(ONEK)) return { duz: deger, eski: true };
   const ham = Buffer.from(deger.slice(ONEK.length), "base64");
-  const d = createDecipheriv("aes-256-gcm", anahtar(sir), ham.subarray(0, 12));
+  // iv (12) + etiket (16) + en az boş gövde; kısa etiketle doğrulama zayıflamasın.
+  if (ham.length < 28) {
+    throw new Error("Kayıtlı bağlantı bozuk. Ayarlar sayfasından yeniden bağlanın.");
+  }
+  const d = createDecipheriv("aes-256-gcm", anahtar(sir), ham.subarray(0, 12), { authTagLength: 16 });
   d.setAuthTag(ham.subarray(12, 28));
   try {
     return { duz: Buffer.concat([d.update(ham.subarray(28)), d.final()]).toString("utf8"), eski: false };
